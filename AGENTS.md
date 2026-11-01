@@ -17,16 +17,20 @@
 | 位置 | 作用 | 何时必读 |
 | --- | --- | --- |
 | `outputs/P1落地实现说明.md` | P1 实际状态、已修缺陷、**未验证边界** | 任何 P1 编码前 |
+| `outputs/P2落地实现说明.md` | **P2 当前做到哪一格**（W0/W1 实况、范围裁定、未验证边界） | 任何 P2 编码前 |
 | `outputs/P1技术实现文档-本地知识库.md` | P1 设计；§9 契约与质量门禁、§12 验收清单、附录A backlog 映射 | 定范围、判达标 |
+| `outputs/P2技术实现文档-本地知识库.md` | P2 设计；§1.3.1 开工门禁、§11 契约工程、§12 编号任务、§13 验收清单、§14 ADR 计划 | 定 P2 范围、判达标 |
 | `outputs/P0专项工作方案-本地知识库.md` | P0 计划本体与验收门槛 | 追溯某道门槛的来源 |
 | `knowledge-base-research-and-plan.md` | 市场方案横向对比与选型结论（RAGFlow/WeKnora/MaxKB/Dify/FastGPT） | 被问"为什么这么选" |
-| `p0/contracts/` | **唯一契约事实源**：`openapi.yaml`、`kafka/*.schema.json`、`state-machine.md`、`error-codes.md`、`config-catalog.md` | 改接口/事件/状态/错误码/配置 |
-| `p0/decisions/` | ADR-001…009 + `Go-No-Go.md` + `P1-backlog.md`（22 项，全带关闭证据） | 每笔取舍要登记时 |
+| `p0/contracts/` | **P0 契约事实源**：`openapi.yaml`、`kafka/*.schema.json`、`state-machine.md`、`error-codes.md`、`config-catalog.md`；`kafka/` 仍是主题与 schema 的**唯一**一份 | 改 P0 接口/事件/状态/错误码/配置 |
+| `p1/contracts/` | **pilot 侧契约事实源**（ADR-014）：`openapi-1.2.yaml`、`error-codes.md`、`state-machine-wiki.md`、`config-catalog-p1.md`、`weknora-adapter.md`（后者未在真机验证故未冻结） | 改 P1/P2 接口、Wiki 状态机、`KB_*` 配置 |
+| `p0/decisions/` | ADR-001…014 + `Go-No-Go.md` + `P1-backlog.md`（29 项，全带关闭证据） | 每笔取舍要登记时 |
 | `p0/evaluation/reports/` | 7 份证据报告（鉴权/入库/检索/质量/离线/备份/故障） | 引用任何数字前 |
+| `p1/evaluation/reports/` | P1/P2 侧实测报告（现有 `p2-wiki-contracts-and-w1.md`）；F-1/F-2/F-3 关闭后的 `retrieval-acl.md`、`oidc-session.md`、`offline-drill.md` **尚未产出** | 引用 P2 数字前 |
 | `p0/README.md` | P0 脚本复现顺序与依赖关系、结论阅读顺序 | 跑验证前 |
 | `p1/compose/README.md` | P1 部署步骤、角色拆分、账号最小权限、运行约束 | 起 P1 栈 |
-| `p1/contracts/weknora-adapter.md` | P1 引擎适配契约（端点、载荷、fail-close、能力探测门禁），由代码反推、**未在真机验证故未冻结** | 改 `WeKnoraAdapter`/`WeKnoraCapabilityProbe` |
-| `p1/portal/src/main/resources/db/migration/` | **P1 迁移执行源**（V1–V11） | 加表改列 |
+| `p1/portal/src/main/resources/db/migration/` | **P1/P2 迁移执行源**（V1–V18） | 加表改列 |
+| `p1/db/migration/` | 上述执行源的**交付评审副本**，经 `p1/scripts/30-sync-migrations.sh` 逐文件 SHA-256 核对 | 评审 P1/P2 DDL |
 | `p0/db/migration/` | P0 迁移的**交付评审副本**，经 `11-sync-migrations.sh` 与执行源逐文件 SHA-256 核对 | 评审 DDL |
 
 ## 3. 目录边界
@@ -34,7 +38,8 @@
 | 目录 | 性质 | 规则 |
 | --- | --- | --- |
 | `p0/` | 验证代码，**不是生产代码** | 不往 P0 加新功能；P0→P1 复用走"复制 → 评审 → 补测试 → 改包名 `com.acme.kb.p1`" |
-| `p1/portal/` `p1/compose/` | P1 生产化门户与部署 | 主要编码区 |
+| `p1/portal/` `p1/compose/` | P1/P2 生产化门户与部署 | 主要编码区 |
+| `p1/contracts/` `p1/db/migration/` `p1/scripts/` `p1/evaluation/` | P2 起的 pilot 侧契约、迁移评审副本、P1/P2 门禁与验证脚本、P1/P2 实测报告 | 与 `p0/*` 同权重；副本与执行源必须哈希一致，脚本只扩展不放宽 |
 | `outputs/` | 交付方案文档 | 结论与口径写在这里，不放运行日志 |
 | `work/` | 一次性草稿脚本 | 不属于交付物，改动无需评审 |
 | `.tmp/` `p0/.tmp/` `target/` | 本机可再生产物 | 已被 `.gitignore` 排除，绝不引用其中内容作为结论依据 |
@@ -53,7 +58,9 @@
 | P1 打包 | `cd p1/portal && mvn -o clean package` |
 | 起依赖栈（MySQL/Redis/Kafka/MinIO） | `bash p0/scripts/01-stack-up.sh`（内含 00 生成口令、03 建主题） |
 | 宿主机跑 P0 门户 :18180 | `bash p0/scripts/07-run-app.sh` |
-| 契约漂移检查（**退出码非 0 即漂移**） | `python p0/scripts/04-check-contracts.py` |
+| 契约漂移检查（**退出码非 0 即漂移**） | `python p0/scripts/04-check-contracts.py`（P0 侧） |
+| P1/P2 契约漂移检查 | `python p1/scripts/24-check-contracts-p1.py`，加 `--selftest` 验证校验不是空跑 |
+| P1/P2 迁移副本核对 | `bash p1/scripts/30-sync-migrations.sh` |
 | 起 P1 栈 | `cd p1/compose && docker build -t kb-p1-portal:1.0.0 ../portal && docker compose --env-file .env up -d` |
 | P1 就绪探针 | `curl -k https://127.0.0.1:8443/actuator/health/readiness`（db/redis/kafkaProbe/disk/engineProbe/storage） |
 | 迁移副本回写核对 | `bash p0/scripts/11-sync-migrations.sh` |
@@ -72,11 +79,20 @@
 | 错误码 | `p0/contracts/error-codes.md` | **声明必须可产生**；产生不了的码要删除 |
 | 配置 | `p0/contracts/config-catalog.md` | 环境变量 / Spring 属性 / 代码默认值 **三层同名对齐** |
 | DB | 迁移目录 | 单向追加；副本与执行源哈希一致 |
+| REST（P1/P2 增量） | `p1/contracts/openapi-1.2.yaml` | 加法优先；操作与 Controller **一一对应**，`x-error-codes` 逐条核 |
+| 状态机（Wiki 三轴） | `p1/contracts/state-machine-wiki.md` | 边表 ↔ `WikiStateMachine.EDGES` 逐条比对；新边必补负向用例与实现测试类名 |
+| 错误码（P1/P2 增量） | `p1/contracts/error-codes.md` | **声明必须可产生**；新增码必须归类 `permanent()` |
+| 配置（P1 增量） | `p1/contracts/config-catalog-p1.md` | 环境变量 / Spring 属性 / `@DefaultValue` **三层同名对齐**，漂移即非零退出 |
 
-三方同步是硬要求：契约文件 ↔ Java（`Dto`、`ErrorCode`、`Events` record、`KbProperties`）↔ 本文档引用的说明。
-`04-check-contracts.py` 只覆盖 **P0 侧** `com.acme.kb.p0.pipeline.Events` 与 schema/OpenAPI；**改 P1 事件/配置字段时它不会报警**，必须人工按第 8 节核对。
-P1 侧目前只有文字契约：`p0/contracts/kafka/README.md` 的「P1 增量主题」小节（`kb.audit.v1` 字段清单、
-`kb.ingest.reconcile.v1` 未接线）与 `p1/contracts/weknora-adapter.md`；两者都还没有 schema 与自动校验，登记在 backlog #20/#21/#22。
+三方同步是硬要求：契约文件 ↔ Java（`Dto`、`ErrorCode`、`Events`/`WikiEvents` record、`KbProperties`）↔ 本文档引用的说明。
+`04-check-contracts.py` 只覆盖 **P0 侧** `com.acme.kb.p0.pipeline.Events` 与 P0 的 schema/OpenAPI；**改 P1 事件/配置字段时它不会报警**。
+P1/P2 侧由 `p1/scripts/24-check-contracts-p1.py` 核对：错误码表 ↔ `ErrorCode`、`config-catalog-p1.md` ↔ `application.yml` ↔ `KbProperties`、
+`openapi-1.2.yaml` ↔ Controller 操作与 `x-error-codes`、`state-machine-wiki.md` 边表与审计动作清单 ↔ Java、
+`p0/contracts/kafka/*.schema.json` ↔ P1 `Events` record 字段与 `AuditWriter` 载荷键。加 `--selftest` 证伪：**改坏一处必非零退出**，
+空跑的检查项直接判失败，不许当门禁。
+仍是文字契约、没有自动校验的两处：`p1/contracts/weknora-adapter.md`（真机未联调，backlog #1/#23）与 `kb.ingest.reconcile.v1`
+（孤儿配置，backlog #21）。backlog #20/#22 已由这套校验关闭；已知缺口是 `x-error-codes` 的"可产生"只核到**全局码集**、
+不核单个操作的调用链（backlog #29），逐操作核之前 `getWikiPage` 这类多余声明不会报警。
 
 ## 6. Java 编码与架构约定
 

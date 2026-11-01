@@ -81,7 +81,12 @@ public final class WikiStateMachine {
     }
 
     public static boolean canTransition(String axis, Enum<?> from, Enum<?> to) {
-        return find(axis, from.name(), to.name()).isPresent();
+        return canTransition(axis, from.name(), to.name());
+    }
+
+    /** 字符串版：库里存的是状态名，写路径的条件更新前后都用它判定边的存在。 */
+    public static boolean canTransition(String axis, String from, String to) {
+        return find(axis, from, to).isPresent();
     }
 
     /** 这条边不存在即非法迁移：调用方须重新读状态后转成 INVALID_STATE_TRANSITION(409) 并写 DENY 审计。 */

@@ -98,10 +98,21 @@ public interface WikiQueryMapper {
     @Select("SELECT " + REVISION_COLUMNS + " FROM wiki_revision WHERE id = #{revisionId}")
     RevisionRow findRevision(@Param("revisionId") String revisionId);
 
-    @Select("SELECT " + REVISION_COLUMNS + """
-            FROM wiki_revision WHERE page_id = #{pageId} AND revision_no = #{revisionNo}
-            """)
+    @Select("SELECT " + REVISION_COLUMNS + " FROM wiki_revision"
+            + " WHERE page_id = #{pageId} AND revision_no = #{revisionNo}")
     RevisionRow findRevisionByNo(@Param("pageId") String pageId, @Param("revisionNo") int revisionNo);
+
+    /**
+     * 乐观锁冲突要报"最新修订号 + 其正文摘要前 12 位"（契约 §5-3），所以这里按 revision_no 倒序取一行，
+     * 并刻意用 `NULL AS body`：差异提示只给计数与摘要，不把别人的正文捞进内存或响应。
+     */
+    @Select("SELECT id, page_id AS pageId, revision_no AS revisionNo, author_user_id AS authorUserId,"
+            + " status, NULL AS body, body_digest AS bodyDigest, summary,"
+            + " reviewer_user_id AS reviewerUserId, reviewed_at AS reviewedAt,"
+            + " decision_note_digest AS decisionNoteDigest, parent_revision_id AS parentRevisionId,"
+            + " created_at AS createdAt FROM wiki_revision WHERE page_id = #{pageId}"
+            + " ORDER BY revision_no DESC LIMIT 1")
+    RevisionRow findLatestRevision(@Param("pageId") String pageId);
 
     /** 修订历史倒序；游标是上一页最后一个 revision_no。 */
     @Select("""
@@ -121,16 +132,16 @@ public interface WikiQueryMapper {
     List<RevisionRow> listRevisions(@Param("pageId") String pageId, @Param("cursor") Integer cursor,
                                     @Param("limit") int limit);
 
-    @Select("SELECT " + SOURCE_COLUMNS + """
-            FROM wiki_source WHERE revision_id = #{revisionId} ORDER BY source_type, source_id, source_version
-            """)
+    @Select("SELECT " + SOURCE_COLUMNS + " FROM wiki_source"
+            + " WHERE revision_id = #{revisionId}"
+            + " ORDER BY source_type, source_id, source_version")
     List<SourceRow> listSources(@Param("revisionId") String revisionId);
 
     /** 批量取多个修订的来源，避免"修订列表 → 逐条查来源"的 N+1。 */
     @Select("""
             <script>
             SELECT """ + SOURCE_COLUMNS + """
-            FROM wiki_source
+             FROM wiki_source
             WHERE revision_id IN
             <foreach item="id" collection="revisionIds" open="(" separator="," close=")">#{id}</foreach>
             ORDER BY revision_id, source_type, source_id, source_version
@@ -189,6 +200,20 @@ public interface WikiQueryMapper {
             """)
     int reviewAssigned(@Param("tenantId") String tenantId, @Param("userId") String userId,
                        @Param("workspaceId") String workspaceId, @Param("kbId") String kbId);
+
+    /**
+     * 待审队列按空间取，但 KB 级指派同样要能看到该 KB 的单子：
+     * 直接传 `kbId = null` 会让 KB 级指派的审核人永远打不开队列，所以这里把 KB 展开到它所属空间。
+     */
+    @Select("""
+            SELECT COUNT(*) FROM wiki_review_assignment
+            WHERE tenant_id = #{tenantId} AND user_id = #{userId}
+              AND (scope_type = 'WORKSPACE' AND scope_id = #{workspaceId}
+                   OR scope_type = 'KB' AND scope_id IN
+                      (SELECT kb.id FROM knowledge_base kb WHERE kb.workspace_id = #{workspaceId}))
+            """)
+    int reviewAssignedInWorkspace(@Param("tenantId") String tenantId, @Param("userId") String userId,
+                                  @Param("workspaceId") String workspaceId);
 
     @Select("""
             SELECT COUNT(*) FROM wiki_page WHERE tenant_id = #{tenantId} AND kb_id = #{kbId}

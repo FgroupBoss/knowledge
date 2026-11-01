@@ -23,6 +23,11 @@ public enum WikiRevisionStatus {
         return this == PENDING;
     }
 
+    /** 已生效/已否决的修订不可原地改，保存动作改为开 `revision_no+1` 的新草稿；PENDING 须先退回（§3）。 */
+    public boolean newDraftAllowed() {
+        return this == APPROVED || this == SUPERSEDED || this == REJECTED;
+    }
+
     public boolean terminal() {
         return TERMINAL.contains(this);
     }

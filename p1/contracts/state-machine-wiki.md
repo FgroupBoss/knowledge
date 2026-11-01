@@ -69,6 +69,11 @@ python p1/scripts/24-check-contracts-p1.py
 `finishTask` 会因 `lease_owner` 条件影响 0 行，只能记 `SKIPPED_NOT_CLAIMABLE` 日志，
 **不许**把已接手的任务改写成终态。
 
+`submit` 不总伴随页面态迁移：对已 `PUBLISHED` 的页面提新修订时只走 `R1`（页面留在 `PUBLISHED`，
+可见指针仍是旧 N），审核通过才由 `E4`/`R2`/`R4` 把指针一次性换到 N+1。因此 `E1`/`E4` 的前置态
+分别是 `DRAFT` 与 `PUBLISHED`，实现里**不能**要求「submit 必须有 PAGE 出边」，否则 `E4`/`R4`
+两条边永远不可能产生。
+
 `RETRACTING → RETRACTED`（`E6`）之外没有任何边把页面送回 `PUBLISHED`：撤稿一旦发起，
 失败只停在 `RETRACTING` + 任务 `COMPENSATION_REQUIRED`，补偿入口是**重新发起** `POST /wiki-pages/{id}/retract`
 （生成新任务行，旧行留作取证）。与 P1 删除 Saga「失败绝不回 `READY`」同构。
@@ -92,8 +97,10 @@ python p1/scripts/24-check-contracts-p1.py
 
 - **永久性**（不进 retry、不退避、直接 `S6`）：`VALIDATION_FAILED`、`ACCESS_DENIED`、
   `CROSS_TENANT_ACCESS`、`WIKI_SOURCE_UNAVAILABLE`、`WIKI_REVIEW_SELF_APPROVAL`、
-  `WIKI_REVIEWER_NOT_ASSIGNED`、`WIKI_TITLE_INVALID`、`DOCUMENT_FORMAT_UNSUPPORTED`、
-  `DOCUMENT_SIGNATURE_MISMATCH`。
+  `WIKI_REVIEWER_NOT_ASSIGNED`、`WIKI_TITLE_INVALID`、`WIKI_BODY_TOO_LARGE`、
+  `DOCUMENT_FORMAT_UNSUPPORTED`、`DOCUMENT_SIGNATURE_MISMATCH`。
+- **既不永久也不暂时**（不进任何重试路由，客户端要带新的并发凭证重来）：`WIKI_REVISION_LOST`、
+  `VERSION_CONFLICT`、`INVALID_STATE_TRANSITION`、`IDEMPOTENCY_CONFLICT`。
 - **暂时性**（`S5` 退避，`backoff-base-ms × 2^attempts`，封顶 `backoff-max-ms`）：`ENGINE_TIMEOUT`、
   `ENGINE_UNAVAILABLE`、`ENGINE_INDEX_FAILED`、`STORAGE_UNAVAILABLE`、`MODEL_UNAVAILABLE`、
   `CONCURRENCY_LIMITED`。
@@ -109,18 +116,18 @@ python p1/scripts/24-check-contracts-p1.py
 
 | # | 用例 | 期望 | 实现位置 | 状态 |
 |---|---|---|---|---|
-| 1 | 对 `DRAFT` 页面执行 approve | 409 `INVALID_STATE_TRANSITION`，审计有 `DENY` 记录 | `WikiReviewTest` | W1 |
-| 2 | 作者自批 | 403 `WIKI_REVIEW_SELF_APPROVAL`，除审计外无副作用 | `WikiReviewTest` | W1 |
-| 3 | `If-Match` 指向旧 `revision_no` 保存 | 409 `WIKI_REVISION_LOST`，响应含当前 `revision_no` 与最新 `body_digest` 前 12 位（**不返回他人正文**），页面内容不变 | `WikiConcurrencyTest` | W1 |
-| 4 | 两个并发 `submit` 同一页 | 恰一个成功，另一个 409，`wiki_revision` 无第三行 | `WikiConcurrencyTest` | W1 |
-| 5 | approve 与 retract 并发 | 终态唯一，不出现"既发布又撤稿"的两份有效可见性 | `WikiConcurrencyTest` | W1（状态轴）/ F-1 待复（索引侧） |
-| 6 | 重复 approve 同一 revision | 幂等：不产生新修订、不重复写 `wiki_sync_task` | `WikiReviewTest` | W1 |
+| 1 | 对 `DRAFT` 页面执行 approve | 409 `INVALID_STATE_TRANSITION`，审计有 `DENY` 记录 | `WikiGovernanceIntegrationTest` | W1 |
+| 2 | 作者自批 | 403 `WIKI_REVIEW_SELF_APPROVAL`，除审计外无副作用 | `WikiGovernanceIntegrationTest` | W1 |
+| 3 | `If-Match` 指向旧 `revision_no` 保存 | 409 `WIKI_REVISION_LOST`，响应含当前 `revision_no` 与最新 `body_digest` 前 12 位（**不返回他人正文**），页面内容不变 | `WikiConcurrencyIntegrationTest` | W1 |
+| 4 | 两个并发 `submit` 同一页 | 恰一个成功，另一个 409，`wiki_revision` 无第三行 | `WikiConcurrencyIntegrationTest` | W1 |
+| 5 | approve 与 retract 并发 | 终态唯一，不出现"既发布又撤稿"的两份有效可见性 | `WikiConcurrencyIntegrationTest` | W1（状态轴）/ F-1 待复（索引侧） |
+| 6 | 重复 approve 同一 revision | 幂等：不产生新修订、不重复写 `wiki_sync_task` | `WikiConcurrencyIntegrationTest` | W1 |
 | 7 | 撤稿后检索同一 `pageId` | 时限内 0 命中；`citation` 预览 404/409 | `22-verify-wiki-acl.py` | F-1 待复 |
 | 8 | 草稿正文关键词跑全库检索 | 0 命中；草稿不可达（空 scope 不发请求） | `22-verify-wiki-acl.py` | F-1 待复 |
-| 9 | 跨租户命中 `pageId` / `revisionId` / `caseId` | 404，`CROSS_TENANT_ACCESS` 只写审计不作响应 | `WikiReviewTest` | W1 |
+| 9 | 跨租户命中 `pageId` / `revisionId` / `caseId` | 404，`CROSS_TENANT_ACCESS` 只写审计不作响应 | `WikiGovernanceIntegrationTest` | W1 |
 | 10 | 撤稿期间引擎不可用 | 停 `RETRACTING` + 任务 `COMPENSATION_REQUIRED`，不回 `PUBLISHED`、不进 retry 主题 | `WikiStateMachineTest`（边表）+ `13-fault-drill.py` | 边表 W1，引擎侧 F-1 待复 |
 | 11 | worker 在 sync `RUNNING` 时被 kill | 租约到期后重新认领，`attempts+1`，无第二份索引 | `21-verify-wiki-publication.py` | F-1 待复 |
-| 12 | 提醒规则同一天扫描两次 | 站内通知恰一条（`(page_id, rule, date_bucket)` 唯一键 + `event_consumption`） | `WikiReminderConstraintTest`（数据层唯一键） | 数据层 W1，调度器 W3 |
+| 12 | 提醒规则同一天扫描两次 | 站内通知恰一条（`(page_id, rule, date_bucket)` 唯一键 + `event_consumption`） | `WikiConcurrencyIntegrationTest`（数据层唯一键） | 数据层 W1，调度器 W3 |
 
 用例 5/10/11 的「索引侧」部分在 stub 上证明等于没证明（§1.3.1 F-1 判据），
 因此本轮**不声称**已通过，只落边表与状态轴断言。
@@ -167,18 +174,21 @@ python p1/scripts/24-check-contracts-p1.py
 | action | 触发 | 资源 | 结果 | 接线 |
 |---|---|---|---|---|
 | `wiki.page.create` | `POST /wiki-pages` | `wiki_page` | ALLOW | W1 |
+| `wiki.page.list` | `GET /knowledge-bases/{kbId}/wiki-pages`（只记计数，不记标题） | `knowledge_base` | ALLOW | W1 |
+| `wiki.page.read` | 页面级读辅助：修订历史列表 ALLOW；跨租户命中 `pageId` DENY（响应仍是 404） | `wiki_page` | ALLOW / **DENY** | W1 |
 | `wiki.revision.read` | 读修订（无 `wiki:review` 读非当前修订时记 DENY） | `wiki_revision` | ALLOW / **DENY** | W1 |
-| `wiki.revision.save` | `PUT /wiki-pages/{id}/draft` | `wiki_revision` | ALLOW | W1 |
-| `wiki.source.attach` | `POST /wiki-pages/{id}/sources` | `wiki_source` | ALLOW | W1 |
-| `wiki.source.detach` | `DELETE /wiki-pages/{id}/sources/{sourceId}` | `wiki_source` | ALLOW | W1 |
+| `wiki.revision.save` | `PUT /wiki-pages/{id}/draft` | `wiki_revision` | ALLOW / **DENY** | W1 |
+| `wiki.source.attach` | `POST /wiki-pages/{id}/sources`（修订非草稿时 DENY） | `wiki_source` | ALLOW / **DENY** | W1 |
+| `wiki.source.detach` | `DELETE /wiki-pages/{id}/sources/{sourceId}`（修订非草稿时 DENY） | `wiki_source` | ALLOW / **DENY** | W1 |
 | `wiki.submit` | `E1`/`R1` | `wiki_page` | ALLOW / DENY | W1 |
 | `wiki.approve` | `E3`/`E4`/`R2`/`R4` | `wiki_page` | ALLOW / DENY | W1 |
 | `wiki.reject` | `E2`/`R3` | `wiki_page` | ALLOW | W1 |
 | `wiki.publish.sync` | `S4`/`S5`/`S6`/`S7` | `wiki_sync_task` | ALLOW | W2（消费者未接线，故 W1 不产生） |
-| `wiki.retract` | `E5`/`E6`/`S8` | `wiki_page` | ALLOW | `E5` W1，`E6`/`S8` W2 |
-| `wiki.archive` | `E7`/`E8` | `wiki_page` | ALLOW | W1 |
+| `wiki.retract` | `E5`/`E6`/`S8` | `wiki_page` | ALLOW / **DENY** | `E5` W1，`E6`/`S8` W2 |
+| `wiki.archive` | `E7`/`E8` | `wiki_page` | ALLOW / **DENY** | W1 |
 | `wiki.owner.change` | `PATCH /wiki-pages/{id}/governance` | `wiki_page` | ALLOW | W1 |
 | `wiki.validity.update` | `PATCH /wiki-pages/{id}/governance` | `wiki_page` | ALLOW | W1 |
+| `wiki.review.queue` | 待审队列的读侧拒绝（非空间成员 / 未被指派） | `workspace` | **DENY** | W1 |
 | `wiki.review.assign` | 审核指派变更（`wiki_review_assignment` 写入） | `wiki_review_assignment` | ALLOW | W3：W1 只读该表算能力，指派由 `p1/compose/README.md` 的引导 SQL 落，没有端点 ⇒ 本轮不可产生 |
 | `correction.case.assign` | 纠错单受理/改派 | `correction_case` | ALLOW | W3 |
 | `correction.case.close` | 纠错单关闭（含 `invalid`） | `correction_case` | ALLOW | W3 |

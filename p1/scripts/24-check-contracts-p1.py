@@ -688,6 +688,15 @@ SCHEMA_FOR_RECORD = {
 }
 
 
+def compare_audit_payload(keys, props):
+    """载荷键 ↔ `audit-event.v1.schema.json` 双向一致（backlog #20 的判据落点）。"""
+    for key in keys:
+        if key not in props:
+            err("AuditWriter 外发载荷有键 %s，audit-event.v1.schema.json 未声明" % key)
+    for key in sorted(props - set(keys)):
+        err("audit-event.v1.schema.json 声明了 %s，但 AuditWriter 的载荷里没有该键" % key)
+
+
 def check_kafka():
     schemas = sorted(f for f in os.listdir(KAFKA) if f.endswith(".schema.json"))
     if not schemas:
@@ -729,12 +738,7 @@ def check_kafka():
     writer = read(AUDIT_WRITER_JAVA)
     keys = re.findall(r'payload\.put\("(\w+)"', writer)
     audit_schema = load_json(os.path.join(KAFKA, "audit-event.v1.schema.json"))
-    props = set(audit_schema.get("properties", {}))
-    for key in keys:
-        if key not in props:
-            err("AuditWriter 外发载荷有键 %s，audit-event.v1.schema.json 未声明" % key)
-    for key in sorted(props - set(keys)):
-        err("audit-event.v1.schema.json 声明了 %s，但 AuditWriter 的载荷里没有该键" % key)
+    compare_audit_payload(keys, set(audit_schema.get("properties", {})))
     bump("审计载荷字段", len(keys))
 
     declared = set(re.findall(r"`(kb\.[a-z0-9.]+\.v\d)`", read(KAFKA_README)))
@@ -825,6 +829,14 @@ def selftest():
         mutated["placeholders"] = placeholders
         compare_config(mutated)
 
+    def audit_payload_key_renamed():
+        writer_keys = re.findall(r'payload\.put\("(\w+)"', read(AUDIT_WRITER_JAVA))
+        schema_props = set(load_json(os.path.join(KAFKA, "audit-event.v1.schema.json"))
+                           .get("properties", {}))
+        victim = sorted(schema_props & set(writer_keys))[0]
+        compare_audit_payload([victim + "_renamed"] + [k for k in writer_keys if k != victim],
+                              schema_props)
+
     def missing_code():
         data = load_codes()
         md = dict(data["md"])
@@ -875,6 +887,7 @@ def selftest():
             ("属性名改名", renamed_prop, "在 application.yml 里不存在"),
             ("KbProperties 缺字段", dropped_field, "在 KbProperties 里没有对应字段"),
             ("未登记环境变量", unregistered_env, "使用了未登记的环境变量"),
+            ("审计载荷键改名", audit_payload_key_renamed, "audit-event.v1.schema.json 未声明"),
             ("码表少一行", missing_code, "缺少"),
             ("分类列漂移", wrong_class, "码表分类"),
             ("码不可产生", unproduced_code, "出现 0 次"),

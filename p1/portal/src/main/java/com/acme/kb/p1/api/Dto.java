@@ -100,4 +100,90 @@ public final class Dto {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record KafkaLag(String consumerGroup, int partitions, long currentOffset, long endOffset, long lag) {
     }
+
+    // ------------------------------------------------------------ P2 Wiki 治理（openapi-1.2.yaml）
+
+    /** 与 `components/schemas/WikiPage` 对齐；`aclVersionGuard` 是契约响应名，库里列名 `acl_version`（ADR-010）。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiPageView(String id, String workspaceId, String kbId, String slug, String title,
+                               String status, String freshness, String ownerUserId, int currentRevisionNo,
+                               Integer publishedRevisionNo, long aclVersionGuard, Instant validUntil,
+                               Instant reviewAt, Instant createdAt, Instant updatedAt, String body,
+                               String bodyDigest, List<String> capabilities, List<WikiSourceView> sources,
+                               WikiSyncTaskView syncTask) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiPageList(List<WikiPageView> items, String nextCursor) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiRevisionSummaryView(String id, String pageId, int revisionNo, String status,
+                                          String authorUserId, String reviewerUserId, Instant reviewedAt,
+                                          String bodyDigest, String summary, Instant createdAt) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiRevisionList(List<WikiRevisionSummaryView> items, String nextCursor) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiRevisionView(String id, String pageId, int revisionNo, String status,
+                                   String authorUserId, String reviewerUserId, Instant reviewedAt,
+                                   String bodyDigest, String summary, Instant createdAt, String body,
+                                   String parentRevisionId, List<WikiSourceView> sources) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiSourceView(String id, String revisionId, String sourceType, String sourceId,
+                                 Integer sourceVersion, Integer chunkIndex, String locator,
+                                 String contentDigest, long aclVersion, boolean available) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiReviewQueueItem(String revisionId, String pageId, String title, int revisionNo,
+                                      String authorUserId, Instant submittedAt, Instant slaDueAt,
+                                      boolean overdue) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiReviewQueue(List<WikiReviewQueueItem> items, String nextCursor) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiDiffLine(String op, String text) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiDiffView(String pageId, int fromRevisionNo, int toRevisionNo, String fromBodyDigest,
+                               String toBodyDigest, int addedLines, int removedLines, boolean truncated,
+                               List<WikiDiffLine> lines) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiSyncTaskView(String id, String operation, String status, int attempts, int maxAttempts,
+                                   Instant nextRunAt, String errorCode, String note) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiPageCreateRequest(String slug, String title, String body, String summary,
+                                        String ownerUserId, Instant validUntil, Instant reviewAt) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiDraftRequest(String title, String body, String summary) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiSourceRequest(String sourceType, String sourceId, Integer sourceVersion,
+                                    Integer chunkIndex, String locator) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiGovernanceRequest(String ownerUserId, Instant validUntil, Instant reviewAt) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record WikiDecisionRequest(String decisionNote) {
+    }
 }

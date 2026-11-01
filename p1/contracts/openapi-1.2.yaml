@@ -418,7 +418,8 @@ paths:
       summary: 页面详情（正文 + 来源 + 治理位 + 服务端算好的 capability）
       description: |
         草稿正文只在 `wiki:read-draft` 且（作者本人 / 被指派审核人 / OWNER、ADMIN）时返回；
-        否则返回已发布修订并把 `capabilities` 里的草稿动作置为不可用，同时写 `WIKI_DRAFT_READ_DENY` 审计。
+        否则返回已发布修订并把 `capabilities` 里的草稿动作置为不可用，同时写 `wiki.revision.read`（result=DENY）
+        审计——审计动作名按 `p1/contracts/state-machine-wiki.md` §9 的小写点名式，不是错误码。
         `RETRACTING/RETRACTED/ARCHIVED` 一律按已发布轴拒绝正文读取。
       x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INVALID_STATE_TRANSITION, INTERNAL_ERROR]
       responses:

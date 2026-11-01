@@ -70,18 +70,28 @@ public class WikiCapabilities {
 
     public Grants compute(Actor actor, AclDecision kb, WikiQueryMapper.PageRow page,
                           WikiQueryMapper.RevisionRow revision) {
+        return compute(actor, kb, page, revision, assigned(actor, page));
+    }
+
+    /** 列表页把指派查询提到循环外，避免逐行查 `wiki_review_assignment`。 */
+    public Grants compute(Actor actor, AclDecision kb, WikiQueryMapper.PageRow page,
+                          WikiQueryMapper.RevisionRow revision, boolean assigned) {
         boolean privileged = kb.role() != null && PRIVILEGED.contains(kb.role());
         boolean read = kb.allows("kb:read");
         boolean write = kb.allows("kb:write");
-        boolean assigned = read && queries.reviewAssigned(actor.tenantId(), actor.userId(),
-                page.workspaceId(), page.kbId()) > 0;
         boolean review = privileged || assigned;
         boolean owner = actor.userId().equals(page.ownerUserId());
         boolean author = revision != null && actor.userId().equals(revision.authorUserId());
-        // 草稿可见性：作者本人、被指派的审核人、或空间 OWNER/ADMIN（契约 openapi getWikiPage 描述）
-        boolean readDraft = write && (author || review || owner);
+        // 草稿可见性就是"作者本人、被指派的审核人、空间 OWNER/ADMIN"三个人的集合（契约 openapi getWikiPage 描述）。
+        // 不叠加 write：VIEWER 角色被指派为审核人时也要能读到待审正文，否则审核队列里有读不了的单子。
+        boolean readDraft = author || review || owner;
         boolean retract = privileged || owner || review;
         return new Grants(read, readDraft, write, write, review, retract, privileged || owner);
+    }
+
+    /** 指派表里有没有这个人的审核行（D-05：能力来自行，不来自新角色）。 */
+    public boolean assigned(Actor actor, WikiQueryMapper.PageRow page) {
+        return queries.reviewAssigned(actor.tenantId(), actor.userId(), page.workspaceId(), page.kbId()) > 0;
     }
 
     /** 审核能力缺失走专用码：客户端动作是"走指派流程"，不是"停止"（error-codes.md）。 */
