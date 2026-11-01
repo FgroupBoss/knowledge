@@ -175,5 +175,13 @@ P1/P2 侧由 `p1/scripts/24-check-contracts-p1.py` 核对：错误码表 ↔ `Er
 
 ## 14. 版本控制现状
 
-本目录**当前不是 git 仓库**（无 `.git`），`.gitignore` 是交付纪律的一部分而非生效的历史。
-需要纳入版本控制、建分支或提交时，先向用户确认；在此之前，任何"回滚/对比历史"的手段都不可用，改动前先复制需覆盖的文件。
+本目录**已是 git 仓库**（2026-11-01 实测）：分支 `main`，远程 `origin = https://github.com/FgroupBoss/knowledge.git`。
+`.gitignore` 从这一起是**生效规则**，不再只是交付纪律的声明。
+
+- 实测排除生效（`git check-ignore -v`）：`p1/compose/secrets/`、`p1/compose/.env`、`p1/portal/target/`、`p0/.tmp/`、`.idea/`。
+  `git ls-files` 里唯一的 `.txt` 是 `p0/compose/image-manifest.txt`（只有镜像 tag + digest，无凭据）。
+  **提交前必须复跑这两条核对**，凭据一旦进过历史就不是"删掉就行"（红线 1）。
+- 迁移副本（`p1/db/migration/`、`p0/db/migration/`）与执行源都在版本控制内，哈希核对仍跑 `11`/`30` 号脚本。
+- 历史只有两条提交时，`git log`/`git diff` 能提供的兜底非常有限：**改契约或迁移文件前仍先复制需覆盖的版本**。
+- 推送、建分支、`git reset`、覆盖历史、改 CI 之类对外可见或不可逆的动作，**每次都要用户明确确认**（红线 8），
+  一次授权只覆盖那一次；不要因为"上次推过"就自行 push。

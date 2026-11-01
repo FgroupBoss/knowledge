@@ -65,7 +65,7 @@ MSYS_NO_PATHCONV=1 docker exec kb-p0-kafka /opt/kafka/bin/kafka-topics.sh --boot
 | PW-19 | §11 C-6：评审副本与执行源逐文件 SHA-256 一致，副本不多不少 | `30-sync-migrations.sh` 列出 V1–V18 全部 18 个哈希，「本次更新 0 个文件」，EXIT=0 | 通过 |
 | PW-20 | §11 C-5：三个新主题在契约、建题脚本与运行态三处一致 | `03-topics.sh` 含 `kb.wiki.sync.v1:3`/`kb.wiki.retract.v1:3`/`kb.wiki.dlq.v1:1`；运行 `kafka-topics --list` 实测 3 个主题均已存在 | 通过 |
 | PW-21 | 全量行为基线：`mvn -o clean test` 全绿且新增行为有对应测试 | `Tests run: 106, Failures: 0, Errors: 0, Skipped: 0`，BUILD SUCCESS（总耗时 21.4s）；其中 Wiki 相关 6 个类 72 例（23 治理 + 9 并发 + 15 状态机 + 9 capability + 8 差异 + 8 校验）。文档与 ADR 改动后又复跑一次，仍 106/0/0/0 | 通过 |
-| PW-22 | 交付物红线扫描（文档改完后复跑） | `check-evidence.cjs` **0 error / 13 warning**，EXIT=0，核对正文引用 252 条、ADR 14 份；13 条 WARN 全是"待产出路径"（F-1/F-2 关闭后才能产出的 `wiki-publication.md`/`wiki-acl.md`/`oidc-session.md`、backlog #20/#26 的关闭证据、P1/P2 设计文档里的规划路径），无一条是现有交付物引用落空。`check-hygiene.cjs` **0 error / 4 warning**，EXIT=0，扫描交付文本 345 个；4 条 WARN 是 `.gitignore` 为本机尚未生成的产物预留的规则 | 通过 |
+| PW-22 | 交付物红线扫描（文档改完后复跑） | `check-evidence.cjs` **0 error / 13 warning**，EXIT=0，核对正文引用 253 条、ADR 14 份；13 条 WARN 全是"待产出路径"（F-1/F-2 关闭后才能产出的 `wiki-publication.md`/`wiki-acl.md`/`oidc-session.md`、backlog #20/#26 的关闭证据、P1/P2 设计文档里的规划路径），无一条是现有交付物引用落空。`check-hygiene.cjs` **0 error / 4 warning**，EXIT=0，扫描交付文本 345 个；4 条 WARN 是 `.gitignore` 为本机尚未生成的产物预留的规则 | 通过 |
 
 ## 本轮测试暴露并修复的缺陷（不是"顺手重构"，都是代码与契约不符）
 
