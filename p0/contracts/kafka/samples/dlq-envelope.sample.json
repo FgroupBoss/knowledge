@@ -1,0 +1,38 @@
+{
+  "dlqId": "6f5e4d3c-2b1a-4987-8675-4433221100aa",
+  "eventType": "INGEST_DEAD_LETTERED",
+  "schemaVersion": 1,
+  "occurredAt": "2026-10-31T02:19:41.502Z",
+  "tenantId": "5b7e9d21-1c3f-4a80-b6d2-0f1e2d3c4b5a",
+  "documentId": "1a2b3c4d-5e6f-4708-9a1b-c2d3e4f50617",
+  "documentVersion": 1,
+  "operationId": "7c6b5a49-3d2e-41f0-8b7a-695847362514",
+  "correlationId": "0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0",
+  "originalTopic": "kb.ingest.retry.v1",
+  "originalPartition": 2,
+  "originalOffset": 1874,
+  "failureCount": 5,
+  "finalErrorCode": "ENGINE_TIMEOUT",
+  "lastErrorSummary": "引擎在 30s 内未返回索引结果",
+  "retryTopics": [
+    "kb.ingest.requested.v1",
+    "kb.ingest.retry.v1"
+  ],
+  "originalEvent": {
+    "eventId": "b2c3d4e5-f6a7-4819-9aab-cd0e1f203142",
+    "eventType": "DOCUMENT_INGEST_RETRY",
+    "schemaVersion": 1,
+    "occurredAt": "2026-10-31T02:14:23.884Z",
+    "tenantId": "5b7e9d21-1c3f-4a80-b6d2-0f1e2d3c4b5a",
+    "documentId": "1a2b3c4d-5e6f-4708-9a1b-c2d3e4f50617",
+    "documentVersion": 1,
+    "operationId": "7c6b5a49-3d2e-41f0-8b7a-695847362514",
+    "correlationId": "0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0",
+    "attempt": 5,
+    "retryReason": "ENGINE_TIMEOUT",
+    "notBefore": "2026-10-31T02:19:03.884Z",
+    "lastErrorCode": "ENGINE_TIMEOUT"
+  },
+  "recordedBy": "worker-3f9c21ab",
+  "replayState": "UNREVIEWED"
+}

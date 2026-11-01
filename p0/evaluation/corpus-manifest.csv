@@ -1,0 +1,61 @@
+code,format,kb_code,kb_name,title,file,bytes,sha256,expect_subject,expect_attribute,expect_value
+OPS-01,md,kb-ops,运维与变更手册,机房环境告警阈值基线,evaluation/corpus/md/OPS-01.md,1923,d9ce2b8a40dce07e32873dc91199061f453c308079905d37f96d7a19e5d9bc68,冷通道温度,告警阈值,27.5℃
+OPS-02,docx,kb-ops,运维与变更手册,数据库备份与保留策略,evaluation/corpus/docx/OPS-02.docx,3618,670016a10855601da29d06726104266d67d759aaa709e39dbcc8c4d08bf0e009,全量备份,保留期,35天
+OPS-03,md,kb-ops,运维与变更手册,Kafka 消费组运行参数,evaluation/corpus/md/OPS-03.md,1937,d30fd79e28b565eee31d39486ceaf5925e413d957ce731a3277ae37caf5c41db,入库消费组,单批最大拉取记录数,500条
+OPS-04,md,kb-ops,运维与变更手册,Redis 缓存容量与逐出规则,evaluation/corpus/md/OPS-04.md,1939,681b0e89b854756074a53170626311e4d8e1aefe8ce7698a4cad63d2950cd365,授权缓存实例,内存上限,6GB
+OPS-05,txt,kb-ops,运维与变更手册,对象存储版本保留说明,evaluation/corpus/txt/OPS-05.txt,1903,df3f4bbfa267bb95b35557b6f459eb1e8c1387840c5a0f4fb1cc96b61ab81bf6,原件桶非当前版本,保留天数,14天
+OPS-06,xlsx,kb-ops,运维与变更手册,变更窗口审批时限表,evaluation/corpus/xlsx/OPS-06.xlsx,5090,fc2a9295e2b534a63e93d553a20e43c4bb88df54c9bf048b508d95f1609414eb,紧急变更,审批时限,30分钟
+OPS-07,pptx,kb-ops,运维与变更手册,生产事故分级与响应要求,evaluation/corpus/pptx/OPS-07.pptx,33726,64d06d5db9dc71d666f865f72abe9b7bf558aee7300ffc10f761c18b61656ff8,P1 级事故,到场响应,15分钟
+OPS-08,md,kb-ops,运维与变更手册,容器镜像漏洞扫描基线,evaluation/corpus/md/OPS-08.md,1917,2034053b72a6c4151a25c0c2f11d9f0145733e5f539ba7725978cbd0d293c0c3,阻断门限,CVSS 评分,7.0分
+OPS-09,md,kb-ops,运维与变更手册,TLS 证书轮换手册,evaluation/corpus/md/OPS-09.md,1913,25faa9848a3a7fefd058f188a423dbe46fd034fc6022ac733288adc4e4916d71,证书到期,提前触发天数,21天
+OPS-10,csv,kb-ops,运维与变更手册,磁盘容量水位治理表,evaluation/corpus/csv/OPS-10.csv,391,825a67f9762ba2c12ae265dc214cf69562a521e6bb446c4af09c6358ada4dbd3,磁盘告警,水位阈值,75%
+OPS-11,md,kb-ops,运维与变更手册,运行日志留存与检索规则,evaluation/corpus/md/OPS-11.md,1938,284a80535917e84324e1570c6232477ebb920f0d6a47da8c423df8212c913df7,应用日志热检索,留存天数,7天
+OPS-12,json,kb-ops,运维与变更手册,服务端口白名单登记,evaluation/corpus/json/OPS-12.json,709,ed3f639efb935246668193911ab2dc69dded727bc0a70b491cba355d3f894e37,数据库对外映射端口,端口号,13306
+OPS-13,pdf,kb-ops,运维与变更手册,灾备切换演练方案,evaluation/corpus/pdf/OPS-13.pdf,37316,998954d03bf1dfbdd792db160dbbca464f39d264c250e216fb3c2350f84c455b,切换目标,RPO,900秒
+OPS-14,log,kb-ops,运维与变更手册,夜班值守交接记录格式,evaluation/corpus/log/OPS-14.log,724,2c0ceb5090beb153abbabfcf87f5caf08034b99162c038de0e7a3f7be373fee5,夜间值班,在岗人数,2人
+OPS-15,md,kb-ops,运维与变更手册,发布回滚判据,evaluation/corpus/md/OPS-15.md,1900,2ddc0d30007c2d9473f0adc55d2beabebdec7ac9899b98daab1ba9416ebd41fe,回滚触发,错误率门限,2.5%
+QMS-01,md,kb-qms,质量体系程序文件,偏差分级与处理时限,evaluation/corpus/md/QMS-01.md,1920,ac43b3d5a24c23158446b62e1273d0f2bb81db146dc98487766f6d85459d624c,重大偏差,调查启动时限,24小时
+QMS-02,docx,kb-qms,质量体系程序文件,纠正与预防措施关闭规则,evaluation/corpus/docx/QMS-02.docx,3600,7f4816acb96e9be41df17df0ba88010ec05f92253f8b4cf93bb3c7825f1b39c0,CAPA 有效性确认,确认周期,90天
+QMS-03,xlsx,kb-qms,质量体系程序文件,洁净区环境监测限度表,evaluation/corpus/xlsx/QMS-03.xlsx,5090,3a0f3cd0cd00b4262f3c8068a0d964696b531a2e1543081e12dbf0f546c3d8e2,沉降菌,静态限度,每皿1cfu
+QMS-04,md,kb-qms,质量体系程序文件,工艺用水检测频次,evaluation/corpus/md/QMS-04.md,1905,5e4ff06166ffd17d5d045eae244ce1769d909f6d07581b5cd9391cf90a910493,纯化水送检,每周频次,2次
+QMS-05,csv,kb-qms,质量体系程序文件,关键仪器校准周期清单,evaluation/corpus/csv/QMS-05.csv,390,7c0df4e1a65f53b22878c28775d98887e944e30f025348a695c1b7d8741ff53d,分析天平,校准周期,6个月
+QMS-06,md,kb-qms,质量体系程序文件,批记录审核与放行时限,evaluation/corpus/md/QMS-06.md,1936,58f24bed757d15e3895cd35e3ec692679a8fabad65e7387736a399b437ab5fd2,批记录审核,放行前工作日,5个工作日
+QMS-07,pdf,kb-qms,质量体系程序文件,稳定性试验留样要求,evaluation/corpus/pdf/QMS-07.pdf,36688,9fb1b4533f381eaf61898dd8953d68031d98dfc40df3dd7b5cc8ecadb0f227fc,长期稳定性考察,考察月数,36个月
+QMS-08,md,kb-qms,质量体系程序文件,供应商审计频次规定,evaluation/corpus/md/QMS-08.md,1938,131bc21d16363e62044b9cb1d7fa99867dd9955ce93da32da9e663d0e75c6261,关键供应商现场审计,间隔月数,24个月
+QMS-09,docx,kb-qms,质量体系程序文件,变更控制影响评估规则,evaluation/corpus/docx/QMS-09.docx,3602,47a7a8a951ce285ee095083f469783d4ee5ed21fec720febc2503f00f4a638cd,变更影响评估,评估工作日,10个工作日
+QMS-10,tsv,kb-qms,质量体系程序文件,培训考核合格标准表,evaluation/corpus/tsv/QMS-10.tsv,382,5b604120fcb7ad1d40e9d6e79f09f4c4e08cfb1d7e4e3e98441af7fd6d90571d,GDP 年度培训,合格分数,80分
+QMS-11,md,kb-qms,质量体系程序文件,受控文件复审周期,evaluation/corpus/md/QMS-11.md,1907,48dd41db065006773b7ea6dcdb524fcbbbf6bb78ba01ce92e9c23305251377cb,受控文件复审,复审间隔,36个月
+QMS-12,md,kb-qms,质量体系程序文件,不合格品处置权限,evaluation/corpus/md/QMS-12.md,1908,93e582632c8d41f063fd2ed5e2178026ccdc07921c030a6cfffaed112d6740d9,让步放行,审批岗位,质量负责人
+QMS-13,json,kb-qms,质量体系程序文件,内审不符合项整改登记,evaluation/corpus/json/QMS-13.json,682,16759f8e4bb2442a70e99b4f334ac799d2d1b346c06023e72e411ed91b3323b6,不符合项整改,证据提交天数,30天
+QMS-14,txt,kb-qms,质量体系程序文件,数据完整性抽查说明,evaluation/corpus/txt/QMS-14.txt,1854,e2fd24479677d34423d89ec90b39bd9cb31739584a2067d617a938000fe6f5eb,关键数据抽查,每批关键点,3个
+QMS-15,xlsx,kb-qms,质量体系程序文件,清洁验证取样规则,evaluation/corpus/xlsx/QMS-15.xlsx,5091,38aa326eee4f52fd6b839e76aeadbe9a63fac62776c9c1c702d23fd1bd5b5688,擦拭取样面积,取样面积,25平方厘米
+FIN-01,md,kb-fin,财务与采购制度,差旅住宿标准,evaluation/corpus/md/FIN-01.md,1904,e51f01a6c1a7b2564cb5bf4a91c345b47e1585f95493f0b7faed882c03cfe95b,一线城市住宿,每晚上限,450元
+FIN-02,docx,kb-fin,财务与采购制度,发票认证与跨期报销,evaluation/corpus/docx/FIN-02.docx,3608,42cbb1fc654c366f18332abaa90f626dac84161ed6fe9c7ebfbf34f527f1f41d,跨期报销截止,截止日期,次年1月31日
+FIN-03,md,kb-fin,财务与采购制度,采购比价与寻源门槛,evaluation/corpus/md/FIN-03.md,1926,14ad475a39b1d72ae5704b81e6935638a474a038b7f32361b69464a7b4934f0f,小额采购比价,最少供应商数,3家
+FIN-04,xlsx,kb-fin,财务与采购制度,合同用印办理时限,evaluation/corpus/xlsx/FIN-04.xlsx,5082,faa2f7723764032448282b5c343490282a30b676463c2cb0cbf3a5b1d182c062,合同用印,办理工作日,2个工作日
+FIN-05,csv,kb-fin,财务与采购制度,固定资产折旧年限表,evaluation/corpus/csv/FIN-05.csv,408,f4344d645ef8c4f70744398d601f8cd2d575fd4640aadfc432cbfeae0e0aa098,服务器类设备,折旧年限,5年
+FIN-06,md,kb-fin,财务与采购制度,供应商付款条件与账期,evaluation/corpus/md/FIN-06.md,1909,6f07a96641767e1c347b2157ec4e3f72889f65332708b35764681b9e1e7fe151,月结账期,付款天数,60天
+FIN-07,docx,kb-fin,财务与采购制度,年度预算调整流程,evaluation/corpus/docx/FIN-07.docx,3593,be4d7420a72ee7559c9ab7e4b095b71044ea1a7f317d1bbad0bba419e9dc1a6e,预算调整上会门槛,调整幅度,10%
+FIN-08,pptx,kb-fin,财务与采购制度,费用报销审批权限矩阵,evaluation/corpus/pptx/FIN-08.pptx,33762,68ed645d2783946e86bd86c25de5b5c600a6d4685c00a5fe832670a3b8fbcf33,单笔报销升级审批,金额起点,2万元
+FIN-09,md,kb-fin,财务与采购制度,投标与履约保证金规则,evaluation/corpus/md/FIN-09.md,1927,5690bf0ec87f61d6b42f975ced84552508c8ab6be332252d187fe9159a693eda,投标保证金,占合同额比例,2%
+FIN-10,tsv,kb-fin,财务与采购制度,中介机构服务费标准表,evaluation/corpus/tsv/FIN-10.tsv,430,ae20ea81d9c51f936a454456722fcb3599b4640ea4788b59f58eea1b520f46ec,年度审计服务费,计费比例,营收0.08%
+FIN-11,json,kb-fin,财务与采购制度,低值易耗品领用规则,evaluation/corpus/json/FIN-11.json,680,5c7c98663efeb52cf6dabef9d89e0ef33f9655a577c18e426358cf03ec26790f,资产编号起点,单件金额,500元
+FIN-12,log,kb-fin,财务与采购制度,银行结算手续费登记,evaluation/corpus/log/FIN-12.log,735,b7a52aee9d5d05eb5e90c5c7874f2b83f249708b17566e08c2652d0ab7b967d8,跨行转账,单笔手续费,25元
+FIN-13,md,kb-fin,财务与采购制度,印花税与票据税费计算,evaluation/corpus/md/FIN-13.md,1967,0b557f14c283e751318ff058442830d07f4b4cd15e05f067c975bebfd7937df0,买卖合同印花税率,计税比例,万分之三
+FIN-14,md,kb-fin,财务与采购制度,员工备用金借款上限,evaluation/corpus/md/FIN-14.md,1928,c4d8e3171b6a53a86a179a2837fa9de132e615480a1dd7640c7234f1123b01f3,在职员工借款,上限口径,1个月工资
+FIN-15,txt,kb-fin,财务与采购制度,供应商准入资料清单,evaluation/corpus/txt/FIN-15.txt,1877,ee9a232b4519fb4a30e20e963c869792a868c2661d89b886e49ab556d994d1c9,资质剩余有效期,最少剩余天数,90天
+DAT-01,md,kb-dat,数据标准与接口规范,数据主题域划分说明,evaluation/corpus/md/DAT-01.md,1900,cdfaa627e3ca3f4163ccb8a47248e981965906c18a6154873f72514426444fe4,主题域,划分数量,14个
+DAT-02,docx,kb-dat,数据标准与接口规范,对外接口报文约束,evaluation/corpus/docx/DAT-02.docx,3594,c91ecb1aa05ee57b432976359b9c2a7d66f671808c27982d4d9d311ad2f5214b,单请求体大小,上限,2MB
+DAT-03,xlsx,kb-dat,数据标准与接口规范,主数据同步时间表,evaluation/corpus/xlsx/DAT-03.xlsx,5087,b900f589d28dce640494f72cc59a4f2ac3a5103f9fefc958d5b301ed7216b576,供应商主数据同步,同步时点,每日01:30
+DAT-04,csv,kb-dat,数据标准与接口规范,经营指标口径登记表,evaluation/corpus/csv/DAT-04.csv,403,95bfb70e0eefd97e9ab72104a890ea7ac30f0b23225d584850fd5165f62cb4c1,准时交付率,分母口径,应交付订单数
+DAT-05,pdf,kb-dat,数据标准与接口规范,服务目录与可用性承诺,evaluation/corpus/pdf/DAT-05.pdf,36964,7d23694590acddf0069712e310a7d8d0ebb65dba844a919f0b925bdc3d177fab,知识库门户,月度可用性,99.5%
+DAT-06,md,kb-dat,数据标准与接口规范,错误码登记与响应约定,evaluation/corpus/md/DAT-06.md,1919,c97d3e324aa4558e00950d9f0a8a53938c7a16cd9832c0db4361ba1c35730951,跨租户资源访问,响应码,404
+DAT-07,md,kb-dat,数据标准与接口规范,字段脱敏与展示规则,evaluation/corpus/md/DAT-07.md,1919,e64e737263868036af944526132e61fff2efb78c6aa1807674f488775333aef4,手机号脱敏,替换位数,中间4位
+DAT-08,tsv,kb-dat,数据标准与接口规范,报表产出时效表,evaluation/corpus/tsv/DAT-08.tsv,377,0f6edfc83c6cc8dbc57a366b31904b420b5d4214fd814659228b9f0013213929,运营日报,生成时点,每日07:00
+DAT-09,md,kb-dat,数据标准与接口规范,知识入库分片参数,evaluation/corpus/md/DAT-09.md,1907,ea2f73db18d27cea8d297c6e91c6b9b6fea6df06159e270a6a4451b91546c9b2,分片目标长度,字符数,800字符
+DAT-10,log,kb-dat,数据标准与接口规范,向量索引运行观察记录,evaluation/corpus/log/DAT-10.log,722,24583d66020a124f80acb129e4455acc35514f10fbd5b557e8a682fab9caff48,向量维度,维度数,768维
+DAT-11,txt,kb-dat,数据标准与接口规范,数据资产责任人登记说明,evaluation/corpus/txt/DAT-11.txt,1877,50d3e5a5bef7e36b6b7216019f14d7089f4fd595a4c19e134af556fe41c2ecb7,每张表责任人,备用责任人,1名
+DAT-12,md,kb-dat,数据标准与接口规范,接口幂等键使用规范,evaluation/corpus/md/DAT-12.md,1890,37ecd5baffcb008babdad4f047b6de11572c8ede63023edb1b8190c249c4ac7e,幂等键,规定格式,UUIDv4
+DAT-13,json,kb-dat,数据标准与接口规范,上传文件类型白名单,evaluation/corpus/json/DAT-13.json,680,f6533b85468137b13f2898d07c7e1eea5fe43bcffe89309b16e545e009298703,允许扩展名,登记数量,10种
+DAT-14,pptx,kb-dat,数据标准与接口规范,问答上下文预算约束,evaluation/corpus/pptx/DAT-14.pptx,33748,1025051b502107648588d52b21b61a1fc2d7b996c4f801e4678d83d730e7c810,单次问答送入片段,最多片段数,6条
+DAT-15,xlsx,kb-dat,数据标准与接口规范,引用定位字段规范,evaluation/corpus/xlsx/DAT-15.xlsx,5082,a8367136426cc72f596e898eaa9482a4356ebe1cd833eb52c11cfbd975ab8824,引用定位,必备字段数,8个

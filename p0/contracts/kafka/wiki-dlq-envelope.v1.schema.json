@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/wiki-dlq-envelope-v1.json",
+  "title": "WIKI_DEAD_LETTERED",
+  "description": "Wiki 同步死信信封。主题 kb.wiki.dlq.v1（单分区，运维巡检优先），按 pageId 分区。语义与 kb.ingest.dlq.v1 一致：原始事件完整留在 originalEvent 里供取证，重放必须先审计 dlqId/correlationId 并把 replayState 从 UNREVIEWED 推进，**不提供自动重放**（误放会造成越权索引）。页面停在原状态不动，治理视图可见该死信。",
+  "type": "object",
+  "required": [
+    "dlqId", "eventType", "schemaVersion", "occurredAt",
+    "tenantId", "pageId", "taskId", "operation", "originalTopic",
+    "originalPartition", "originalOffset", "failureCount", "finalErrorCode",
+    "originalEvent", "recordedBy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "dlqId": { "type": "string", "format": "uuid", "description": "死信记录主键，也是 outbox/consumption 账本里的 eventId" },
+    "eventType": { "const": "WIKI_DEAD_LETTERED" },
+    "schemaVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "kbId": { "type": "string", "format": "uuid" },
+    "pageId": { "type": "string", "format": "uuid", "description": "Kafka partition key" },
+    "revisionNo": { "type": "integer", "minimum": 1 },
+    "taskId": { "type": "string", "format": "uuid" },
+    "operation": { "type": "string", "enum": ["PUBLISH", "RETRACT"] },
+    "operationId": { "type": "string", "format": "uuid" },
+    "correlationId": { "type": "string", "description": "等同 traceId" },
+    "originalTopic": { "type": "string", "description": "最后一条失败消息真实来自哪个主题，重放要回到正确入口" },
+    "originalPartition": { "type": "integer", "minimum": -1, "description": "-1 = 该死信不由消费者线程产生（如发布侧判定永久失败），无 broker 坐标" },
+    "originalOffset": { "type": "integer", "minimum": -1 },
+    "failureCount": { "type": "integer", "minimum": 1 },
+    "finalErrorCode": { "type": "string", "description": "最后一次失败的 ErrorCode 名称，必须在 p1/contracts/error-codes.md 码表内" },
+    "lastErrorSummary": { "type": "string", "maxLength": 512, "description": "安全摘要：不得包含堆栈、正文、Prompt、对象键与凭据" },
+    "originalEvent": { "type": "object", "description": "未修改的原始 payload" },
+    "recordedBy": { "type": "string", "description": "worker 实例 id / pod name" },
+    "replayState": { "type": "string", "enum": ["UNREVIEWED", "APPROVED", "REPLAYED", "DISCARDED"], "default": "UNREVIEWED" },
+    "replayedBy": { "type": ["string", "null"] },
+    "replayedAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

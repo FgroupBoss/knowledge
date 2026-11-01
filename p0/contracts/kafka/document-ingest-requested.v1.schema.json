@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/document-ingest-requested-v1.json",
+  "title": "DOCUMENT_INGEST_REQUESTED",
+  "description": "入库请求事件。主题 kb.ingest.requested.v1，按 documentId 分区保证单文档顺序。payload 不含原文与敏感内容。",
+  "type": "object",
+  "required": [
+    "eventId", "eventType", "schemaVersion", "occurredAt",
+    "tenantId", "documentId", "documentVersion", "operationId", "correlationId"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid", "description": "消费端幂等键之一" },
+    "eventType": { "const": "DOCUMENT_INGEST_REQUESTED" },
+    "schemaVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time", "description": "UTC" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "kbId": { "type": "string", "format": "uuid" },
+    "documentId": { "type": "string", "format": "uuid", "description": "Kafka partition key" },
+    "documentVersion": { "type": "integer", "minimum": 1 },
+    "operationId": { "type": "string", "format": "uuid", "description": "一次业务操作，retry 生成新值；与 ingest_task 唯一约束对应" },
+    "correlationId": { "type": "string", "format": "uuid", "description": "等同 traceId，贯穿 API/任务/worker/引擎/审计" },
+    "aclVersion": { "type": "integer", "minimum": 1, "description": "事件产生时的知识库授权版本" },
+    "attempt": { "type": "integer", "minimum": 0, "default": 0 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "消费端下载原件后必须核对" }
+  }
+}

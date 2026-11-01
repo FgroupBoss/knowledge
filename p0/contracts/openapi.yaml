@@ -1,0 +1,751 @@
+openapi: 3.1.0
+info:
+  title: 本地知识库 P0 验证 API
+  version: 0.1.0-frozen
+  summary: P0 纵向切片契约（冻结）
+  description: |
+    P0 技术验证专用契约。授权判定全部在 Java 服务端完成；客户端提交的 tenant/workspace/KB
+    仅作为范围提示，服务端与主体可访问集合求交。
+
+    身份：P0 使用受控测试身份头 `X-P0-Subject: <tenantCode>:<userCode>`（仅 profile
+    `p0-auth-stub` 生效）；P1 替换为 OIDC Authorization Code + 同源 HttpOnly Cookie。
+    两种模式下授权服务实现完全一致。
+
+    幂等：上传必须携带 UUID 形式的 `Idempotency-Key`；相同键重复请求返回同一 document/task，
+    不产生第二个有效任务。问答同理，重复幂等键返回同一 requestId 的状态。
+
+    追踪：所有响应带 `X-Trace-Id`，并写入审计与 Kafka header。
+
+    全局响应头（由 `TraceIdFilter` 统一写入，各操作不再重复声明）：
+    `X-Trace-Id`、`X-Request-Id`、`Cache-Control: no-store`、`X-Content-Type-Options: nosniff`、
+    `Referrer-Policy: no-referrer`。引用预览额外保证 `Cache-Control: no-store`。
+
+    `x-p0-fixture: true` 的操作仅用于构造验证夹具和取证（成员/ACL/积压/lag），
+    不属于 P1 对外契约。
+servers:
+  - url: http://127.0.0.1:18180
+    description: 宿主机回环（仅 P0 验证环境）
+
+tags:
+  - name: documents
+  - name: chat
+  - name: citations
+  - name: fixture
+
+security:
+  - P0TestSubject: []
+
+paths:
+  /api/v1/workspaces/{workspaceId}/knowledge-bases/{kbId}/documents:
+    post:
+      tags: [documents]
+      operationId: uploadDocument
+      summary: 单文件上传（异步入库）
+      description: |
+        权限校验 → 文件签名/MIME/大小校验 → 流式写 MinIO 私有桶并计算 SHA-256 →
+        同一事务内写 document + ingest_task + outbox_event → 返回 202。
+        MinIO 写成功但事务失败时对象进入待清理状态，DB 不留指向未完成对象的记录。
+      parameters:
+        - { name: workspaceId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: kbId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+              description: |
+                只接受文件本身：显示名由服务端从上传文件名清洗得到（控制字符与路径分隔符替换、
+                超长截尾），不接受客户端额外提交的展示字段，避免注入与二次校验面。
+      responses:
+        '202':
+          headers:
+            X-Trace-Id: { $ref: '#/components/headers/TraceId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadAccepted' }
+        '413': { description: 超过 p0.upload.max-bytes（DOCUMENT_TOO_LARGE） }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/documents/{documentId}:
+    get:
+      tags: [documents]
+      operationId: getDocument
+      summary: 文档与入库状态
+      description: 每次请求重新校验租户与资源权限；支持 ETag/If-None-Match。
+      parameters:
+        - { name: documentId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          headers:
+            ETag: { schema: { type: string } }
+            X-Trace-Id: { $ref: '#/components/headers/TraceId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '304': { description: 状态未变化 }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      summary: 删除（幂等 Saga）
+      description: |
+        需要 kb:delete（仅 OWNER/ADMIN）；权限校验先于状态校验，无权限者不会从状态差异里得到信息。
+        先冻结该版本检索（status=DELETING 并同步引擎下线），确认引擎不可检索后再处理原件；
+        引擎删除失败进入 COMPENSATION_REQUIRED，原件按保留策略处置。重复删除返回同一结果。
+      parameters:
+        - { name: documentId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: purge, in: query, required: false, schema: { type: boolean, default: false } }
+      responses:
+        '202':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/documents/{documentId}/retry:
+    post:
+      tags: [documents]
+      operationId: retryDocument
+      summary: 重试失败任务
+      description: 仅暂时性失败或 COMPENSATION_REQUIRED 可重试；创建新 operationId 并保留审计。
+      parameters:
+        - { name: documentId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: Idempotency-Key, in: header, required: false, schema: { $ref: '#/components/schemas/Uuid' } }
+      responses:
+        '202':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/tasks/{taskId}:
+    get:
+      tags: [documents]
+      operationId: getTask
+      summary: 任务状态与重试轨迹
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        default: { $ref: '#/components/responses/Error' }
+      parameters:
+        - { name: taskId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+
+  /api/v1/knowledge-bases/{kbId}/chat:
+    post:
+      tags: [chat]
+      operationId: chat
+      summary: 检索问答（非流式，P0 主验证入口）
+      description: |
+        服务端由会话主体构造 ACL scope，客户端提交的 knowledgeBaseIds 只与授权集合求交；
+        引擎召回后逐条二次校验 tenant/workspace/kb/document/version/ACL/密级，
+        未通过复核的 chunk 不进入 Prompt。无足够依据时返回 NO_EVIDENCE，不要求模型猜答。
+      parameters:
+        - { name: kbId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: Idempotency-Key, in: header, required: false, schema: { $ref: '#/components/schemas/Uuid' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '200':
+          headers:
+            X-Trace-Id: { $ref: '#/components/headers/TraceId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/knowledge-bases/{kbId}/chat/stream:
+    post:
+      tags: [chat]
+      operationId: chatStream
+      summary: 检索问答（SSE，用于首 Token 延迟测量）
+      description: |
+        `Accept: text/event-stream`。事件类型依次为 meta → sources → token* → done|error，
+        每个事件带递增 `seq`。sources 只包含 ACL 复核通过的引用。相同 Idempotency-Key 返回同一请求。
+
+        错误是**带内的**：业务失败以 HTTP 200 + `error` 帧返回（`error={code,message,traceId}`），
+        因为响应头在流开始前就已发出；只有取身份失败（401/403）才表现为真实 HTTP 状态。
+        客户端必须同时处理状态码与 `error` 帧，不能只靠状态码判断成败。
+
+        不支持断点续传。客户端断开后服务端仍会把本次生成跑完并落库（ANSWERED/NO_EVIDENCE），
+        之后的事件被丢弃；P0 不实现"断开即取消生成"（模型侧取消属 P1 容量项，见 P1 backlog）。
+      parameters:
+        - { name: kbId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: Idempotency-Key, in: header, required: false, schema: { $ref: '#/components/schemas/Uuid' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '200':
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  SSE data 载荷（JSON）：
+                  {seq,type,payload}；type ∈ meta|sources|token|done|error。
+                  meta={requestId,conversationId,messageId}；
+                  sources={citations:[Citation]}；token={text}；
+                  done={status,usage,latency,aclStats}；
+                  error={code,message,traceId}。
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/citations/{citationId}/preview:
+    get:
+      tags: [citations]
+      operationId: previewCitation
+      summary: 引用原文授权预览
+      description: |
+        每次请求重新授权（租户/成员/KB 读/文档 ACL/密级/版本仍存在）；
+        定位信息可用时从 MinIO 权威原件按字符偏移切片返回，否则返回入库时保存的片段。
+        全响应 Cache-Control: no-store，任何情况下不返回对象存储预签名 URL。
+      parameters:
+        - { name: citationId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+      responses:
+        '200':
+          headers:
+            Cache-Control: { schema: { type: string, example: no-store } }
+          content:
+            text/plain:
+              schema: { type: string }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/me:
+    get:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: whoami
+      summary: 当前测试身份与授权范围
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Principal' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/workspaces:
+    post:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: createWorkspace
+      summary: 创建空间（夹具）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string, maxLength: 64 }
+                name: { type: string, maxLength: 128 }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workspace' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/workspaces/{workspaceId}/knowledge-bases:
+    post:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: createKnowledgeBase
+      summary: 创建知识库（夹具，含密级）
+      parameters:
+        - { name: workspaceId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, classification]
+              properties:
+                code: { type: string, maxLength: 64 }
+                name: { type: string, maxLength: 128 }
+                classification: { $ref: '#/components/schemas/Classification' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeBase' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/workspaces/{workspaceId}/members:
+    post:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: addMember
+      summary: 增加/更新成员角色（触发 acl_version 递增与缓存失效）
+      parameters:
+        - { name: workspaceId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userCode, role]
+              properties:
+                userCode: { type: string }
+                role: { $ref: '#/components/schemas/WorkspaceRole' }
+      responses:
+        '200': { description: 已生效 }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: removeMember
+      summary: 撤权（同一请求内使缓存失效并递增 acl_version）
+      parameters:
+        - { name: workspaceId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+        - { name: userCode, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 已撤销 }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/documents/{documentId}/acl:
+    post:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: grantDocumentAcl
+      summary: 文档级 ACL 授权（最小范围）
+      parameters:
+        - { name: documentId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userCode, grant]
+              properties:
+                userCode: { type: string }
+                grant: { type: string, enum: [READ, WRITE] }
+      responses:
+        '200': { description: 已授权 }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/verification/backlog:
+    get:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: getBacklog
+      summary: Outbox 积压 / Kafka lag / DLQ / 任务分布
+      description: 运维取证端点，仅 ADMIN 主体可用；只返回计数与状态分布，不返回正文。
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Backlog' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/verification/cache-stats:
+    get:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: getCacheStats
+      summary: 授权缓存命中/拒绝计数
+      description: 除 Backlog 外单独暴露，便于故障注入后立即比对 staleRejected 与 redisErrors。
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { type: integer, format: int64 }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/verification/cache/poison:
+    post:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: poisonCache
+      summary: 写入一条过期的授权决策缓存（攻击夹具）
+      description: |
+        验证"缓存里仍存在旧权限时不得放行"：写入 aclVersion 低于水位的决策后，
+        同一主体的下一次访问必须回源 MySQL。只允许写低版本，不构造任何绕过路径。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kbId, userCode, aclVersion]
+              properties:
+                kbId: { $ref: '#/components/schemas/Uuid' }
+                userCode: { type: string }
+                aclVersion: { type: integer, format: int64 }
+                role: { $ref: '#/components/schemas/WorkspaceRole' }
+      responses:
+        '200': { description: 已写入 }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/fixture/tenants:
+    post:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: ensureTenant
+      summary: 幂等创建租户（跨租户越权样例需要第二个租户）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, maxLength: 64 }
+                name: { type: string, maxLength: 128 }
+      responses:
+        '201': { description: 已存在或已创建 }
+        default: { $ref: '#/components/responses/Error' }
+
+  /api/v1/fixture/principals:
+    post:
+      tags: [fixture]
+      x-p0-fixture: true
+      operationId: ensurePrincipal
+      summary: 幂等创建测试主体（issuer=p0-test）
+      description: 身份只落库不改判：所有授权仍走同一套 AuthorizationService。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenantCode, userCode]
+              properties:
+                tenantCode: { type: string }
+                userCode: { type: string }
+                displayName: { type: string, maxLength: 128 }
+                clearance: { $ref: '#/components/schemas/Classification' }
+      responses:
+        '201': { description: 已存在或已创建 }
+        default: { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    P0TestSubject:
+      type: apiKey
+      in: header
+      name: X-P0-Subject
+      description: 'P0 受控测试身份 `<tenantCode>:<userCode>`；P1 由 OIDC 会话替代。'
+
+  headers:
+    TraceId:
+      schema: { type: string }
+      description: 贯穿 API/任务/Kafka/worker/引擎/审计。
+
+  responses:
+    Error:
+      description: 统一错误结构；不泄露对象键、Prompt、凭据或堆栈。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    RateLimited:
+      description: |
+        429。问答按"主体+分钟"固定窗口限流（RATE_LIMITED），Retry-After 给出到窗口结束的真实秒数；
+        上传/模型并发槽位满（CONCURRENCY_LIMITED）给保守提示 5 秒，因为槽位释放时刻不可预测。
+      headers:
+        Retry-After:
+          schema: { type: string }
+          description: 距可重试的秒数
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+
+    Classification:
+      type: string
+      enum: [INTERNAL, SECRET, TOP_SECRET]
+      description: 密级；主体 clearance 必须不低于知识库与文档密级。
+
+    WorkspaceRole:
+      type: string
+      enum: [OWNER, ADMIN, CONTRIBUTOR, VIEWER]
+
+    DocumentStatus:
+      type: string
+      enum: [UPLOADED, QUEUED, PARSING, INDEXING, READY, FAILED, DELETING, DELETED, COMPENSATION_REQUIRED]
+      description: |
+        状态机：UPLOADED→QUEUED→PARSING→INDEXING→READY；
+        暂时性失败保持 QUEUED/PARSING/INDEXING 并可重放；永久错误→FAILED；
+        删除 READY→DELETING→DELETED；跨系统补偿失败→COMPENSATION_REQUIRED。
+
+    TaskStatus:
+      type: string
+      enum: [PENDING, CLAIMED, RUNNING, SUCCEEDED, RETRY_SCHEDULED, FAILED, DEAD_LETTERED]
+      description: |
+        一个 operation 只有一个任务；终态为 SUCCEEDED / FAILED / DEAD_LETTERED 之一。
+        没有 CANCELLED：P0 的删除走独立 delete 任务，不取消在途入库任务（并发窗口太小，
+        不值得为它引入"半途取消"的状态），入库中的文档要删除须等收敛后再发 DELETE。
+
+    UploadAccepted:
+      type: object
+      required: [documentId, taskId, status, duplicate]
+      properties:
+        documentId: { $ref: '#/components/schemas/Uuid' }
+        taskId: { $ref: '#/components/schemas/Uuid' }
+        operationId: { $ref: '#/components/schemas/Uuid' }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        duplicate: { type: boolean, description: 幂等命中已有记录 }
+        version: { type: integer }
+
+    Document:
+      type: object
+      required: [id, kbId, workspaceId, version, status, sha256, sizeBytes, mimeType]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        tenantId: { $ref: '#/components/schemas/Uuid' }
+        workspaceId: { $ref: '#/components/schemas/Uuid' }
+        kbId: { $ref: '#/components/schemas/Uuid' }
+        displayName: { type: string }
+        version: { type: integer }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        sizeBytes: { type: integer, format: int64 }
+        mimeType: { type: string }
+        classification: { $ref: '#/components/schemas/Classification' }
+        engineDocId: { type: ['string', 'null'] }
+        latestTask: { $ref: '#/components/schemas/Task' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Task:
+      type: object
+      required: [id, documentId, status, attempts]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        documentId: { $ref: '#/components/schemas/Uuid' }
+        operationId: { $ref: '#/components/schemas/Uuid' }
+        taskType: { type: string, enum: [INGEST, DELETE, REINDEX] }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        attempts: { type: integer }
+        maxAttempts: { type: integer }
+        nextRunAt: { type: ['string', 'null'], format: date-time }
+        leaseUntil: { type: ['string', 'null'], format: date-time }
+        errorCode: { type: ['string', 'null'] }
+        errorSummary: { type: ['string', 'null'], description: 安全摘要，不含堆栈与原文 }
+        startedAt: { type: ['string', 'null'], format: date-time }
+        finishedAt: { type: ['string', 'null'], format: date-time }
+
+    ChatRequest:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 4000 }
+        conversationId: { $ref: '#/components/schemas/Uuid' }
+        knowledgeBaseIds:
+          type: array
+          description: 范围提示；服务端与主体授权集合求交，越界项直接丢弃并计入 aclStats。
+          items: { $ref: '#/components/schemas/Uuid' }
+        topK: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        contextChunks: { type: integer, minimum: 1, maximum: 12, default: 6 }
+
+    ChatResponse:
+      type: object
+      required: [requestId, status, answer, citations]
+      properties:
+        requestId: { $ref: '#/components/schemas/Uuid' }
+        conversationId: { $ref: '#/components/schemas/Uuid' }
+        messageId: { $ref: '#/components/schemas/Uuid' }
+        status:
+          type: string
+          enum: [ANSWERED, NO_EVIDENCE, REFUSED, INTERRUPTED, ERROR]
+        answer: { type: string }
+        citations:
+          type: array
+          items: { $ref: '#/components/schemas/Citation' }
+        usage:
+          type: object
+          properties:
+            promptTokens: { type: integer }
+            completionTokens: { type: integer }
+        latency:
+          type: object
+          properties:
+            authorizationMs: { type: integer, format: int64 }
+            retrievalMs: { type: integer, format: int64 }
+            firstTokenMs: { type: integer, format: int64 }
+            totalMs: { type: integer, format: int64 }
+        aclStats:
+          type: object
+          description: 授权与过滤轨迹，验收时用于证明越权项在 Prompt 前被剔除。
+          properties:
+            requestedKbCount: { type: integer }
+            authorizedKbCount: { type: integer }
+            engineCandidates: { type: integer }
+            droppedByAcl: { type: integer }
+            droppedByClearance: { type: integer }
+            droppedByStaleVersion: { type: integer }
+            promptChunks: { type: integer }
+            droppedScopes:
+              type: array
+              description: 被丢弃的范围提示，形如 `<kbId>=<错误码>`；只回代码，不回内容。
+              items: { type: string }
+        traceId: { type: string }
+
+    Citation:
+      type: object
+      required: [citationId, documentId, documentVersion, aclVerified]
+      properties:
+        citationId: { $ref: '#/components/schemas/Uuid' }
+        documentId: { $ref: '#/components/schemas/Uuid' }
+        documentVersion: { type: integer }
+        engineDocId: { type: string }
+        engineChunkId: { type: string }
+        title: { type: string }
+        page: { type: ['integer', 'null'] }
+        section: { type: ['string', 'null'] }
+        charStart: { type: ['integer', 'null'] }
+        charEnd: { type: ['integer', 'null'] }
+        snippet: { type: string, description: 授权后才返回，最多 2000 字符 }
+        snippetDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
+        score: { type: number, format: double }
+        aclVerified: { type: boolean, description: 恒为 true；false 情况不会出现在响应中 }
+
+    Principal:
+      type: object
+      properties:
+        tenantCode: { type: string }
+        userCode: { type: string }
+        clearance: { $ref: '#/components/schemas/Classification' }
+        workspaces:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { $ref: '#/components/schemas/Uuid' }
+              code: { type: string }
+              role: { $ref: '#/components/schemas/WorkspaceRole' }
+              knowledgeBases:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { $ref: '#/components/schemas/Uuid' }
+                    code: { type: string }
+                    aclVersion: { type: integer }
+                    classification: { $ref: '#/components/schemas/Classification' }
+
+    Workspace:
+      type: object
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        code: { type: string }
+        name: { type: string }
+
+    KnowledgeBase:
+      type: object
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        workspaceId: { $ref: '#/components/schemas/Uuid' }
+        code: { type: string }
+        name: { type: string }
+        classification: { $ref: '#/components/schemas/Classification' }
+        aclVersion: { type: integer }
+        engineKbId: { type: string }
+
+    Backlog:
+      type: object
+      properties:
+        outboxUnpublished: { type: integer, description: 尚未投递的 Outbox 行数 }
+        outboxOldestAgeSeconds: { type: integer }
+        tasksByStatus:
+          type: object
+          additionalProperties: { type: integer }
+          description: ingest_task 状态分布，键取 TaskStatus。
+        kafka:
+          allOf:
+            - $ref: '#/components/schemas/KafkaLag'
+          description: 入库消费组（p0-ingest）在 requested+retry 两个主题上的位点差。
+        deleteKafka:
+          allOf:
+            - $ref: '#/components/schemas/KafkaLag'
+          description: 删除消费组（p0-delete）单独计量；两个组混算会掩盖真实积压。
+        dlqCount: { type: integer, description: 任务状态为 DEAD_LETTERED 的数量 }
+        unconvergedDocuments: { type: integer, description: 处于 DELETING/COMPENSATION_REQUIRED 的文档数 }
+        engineChunks: { type: integer, description: 引擎索引 chunk 总数，用于证明无重复有效索引 }
+        searchableEngineDocs: { type: integer, description: 引擎侧可检索文档数，应与 READY 文档数一致 }
+        cacheStats:
+          type: object
+          description: 授权缓存命中/拒绝计数；staleRejected 与 redisErrors 证明缓存失效不会放宽权限。
+          additionalProperties: { type: integer, format: int64 }
+
+    KafkaLag:
+      type: object
+      description: 单个消费组按分区聚合的位点差；读不到 Kafka 时各项为 -1（取证失败不伪装成 0 lag）。
+      properties:
+        consumerGroup: { type: string }
+        partitions: { type: integer }
+        currentOffset: { type: integer, format: int64 }
+        endOffset: { type: integer, format: int64 }
+        lag: { type: integer, format: int64 }
+
+    ApiError:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+          description: 稳定业务错误码，见 contracts/error-codes.md。只声明本服务真实能返回的码；
+            CROSS_TENANT_ACCESS 仅出现在审计 reason_code，响应一律降级为 RESOURCE_NOT_FOUND，
+            以免泄露对方租户资源是否存在
+          enum:
+            - VALIDATION_FAILED
+            - UNAUTHENTICATED
+            - ACCESS_DENIED
+            - CROSS_TENANT_ACCESS
+            - CLEARANCE_TOO_LOW
+            - RESOURCE_NOT_FOUND
+            - IDEMPOTENCY_CONFLICT
+            - DOCUMENT_TOO_LARGE
+            - DOCUMENT_FORMAT_UNSUPPORTED
+            - DOCUMENT_SIGNATURE_MISMATCH
+            - INVALID_STATE_TRANSITION
+            - TASK_NOT_RETRYABLE
+            - ENGINE_UNAVAILABLE
+            - ENGINE_TIMEOUT
+            - ENGINE_INDEX_FAILED
+            - STORAGE_UNAVAILABLE
+            - MODEL_UNAVAILABLE
+            - RATE_LIMITED
+            - CONCURRENCY_LIMITED
+            - CHAT_NO_EVIDENCE
+            - INTERNAL_ERROR
+        message: { type: string, description: 可展示信息，不含内部细节 }
+        requestId: { type: string }
+        traceId: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              reason: { type: string }
+      example:
+        code: ACCESS_DENIED
+        message: 无权访问该资源
+        requestId: 01J8ZQ8K2Q9G7R6T5V4W3X2Y1Z
+        traceId: 01J8ZQ8K2Q9G7R6T5V4W3X2Y1Z

@@ -1,0 +1,17 @@
+from pathlib import Path
+p=Path('outputs/本地知识库完整实现技术方案.md')
+s=p.read_text(encoding='utf-8')
+def ins(anchor, text):
+ global s
+ if anchor not in s: raise Exception('anchor missing: '+anchor[:70])
+ s=s.replace(anchor, anchor+text, 1)
+ins('## 3. 总体架构\n', '''\n### 3.0 已定实施决策\n\n| 领域 | 决策 |\n|---|---|\n| 身份与会话 | 同源 HttpOnly、Secure、SameSite=Lax Cookie；OIDC Authorization Code 由 Java 后端处理，变更请求校验 CSRF。Java 是身份、租户、成员关系与授权唯一事实源。 |\n| 引擎身份 | Java 以独立最小权限服务身份调用 WeKnora；客户端提交的 tenant/ACL 不可信。Java 按会话构造授权范围，召回阶段过滤后逐条校验 chunk 的 tenant、workspace、KB、文档版本和 ACL。未经复核的 chunk 不进入 Prompt。 |\n| 原件主存储 | MinIO 是原始文件唯一权威副本。Java 写入私有 bucket 并计算 SHA-256，再由异步 worker 上传引擎；引擎对象为可重建副本。显式映射 document/version、object key、engine_doc_id。 |\n| API 契约 | OpenAPI 3.1 为 REST 唯一契约来源；冻结 SSE schema、事件样例和错误码，前端据此生成 TypeScript 客户端。 |\n| MVP 范围 | P1 仅交付登录、空间/成员基础、知识库、文档上传入库/状态/删除、问答/引用/反馈、审计基础和 Compose。Wiki 为 P2，Text2SQL 为 P3。 |\n| 恢复策略 | 业务库、引擎库、MinIO 按一致性检查点协调备份；未通过隔离环境恢复演练不得宣称备份可用。 |\n\n若 WeKnora 无法在召回阶段可靠执行服务端范围过滤，P0 不得直接上线；须按权限边界拆分知识库或增加 Java 授权检索隔离层，并重跑越权用例。二次过滤后候选不足，只能在授权范围补召回，否则按无依据处理。\n''')
+s=s.replace('推荐链路为查询改写（可选）→ 向量与关键词并行召回 → RRF/引擎融合 → 去重与重排 → ACL 二次过滤 → token 预算内组 Prompt → 流式生成 → 保存答案和引用。初始参数可用候选 Top-K 20、最终上下文 4–8 段作为评测起点，最终阈值按真实语料校准。','推荐链路为查询改写（可选）→ 向量与关键词并行召回（服务端 ACL 前置过滤）→ RRF/引擎融合 → 去重与重排 → Java ACL 二次过滤 → token 预算内组 Prompt → 流式生成 → 保存答案和引用。初始参数可用候选 Top-K 20、最终上下文 4–8 段作为评测起点，最终阈值按真实语料校准。过滤后不足时只可在授权范围扩大召回，不能回退到无过滤检索。')
+ins('| POST `/chat/completions` | RAG 问答 | chat；SSE/JSON |\n','| POST `/chat/completions/{requestId}/cancel` | 取消生成 | 当前请求所有者 |\n| GET `/citations/{id}/content` | 授权后流式预览原文 | 文档 `kb:read`；不暴露对象存储 URL |\n')
+ins('响应事件依次可包含 `sources`、`token`、`done`、`error`。Nginx 对 SSE 禁用 response buffering，设置合理的 idle timeout；客户端断开时取消可取消的模型请求。引用事件先发送来源元数据，token 事件只发增量正文。\n','''\n\n契约固定如下：请求携带 UUID `Idempotency-Key`；服务端创建并返回 `requestId`、`messageId`。首次提问可不带 `conversationId`，新会话 ID 在 `meta` 事件返回。事件为 `meta`（会话/消息/请求 ID）、`sources`（ACL 复核后的引用数组）、`token`（增量文本）、`done`（最终状态及 usage）、`error`（稳定业务 code、可展示 message、traceId），每个事件带递增 `seq`。相同幂等键重试返回同一请求状态，不重新生成。默认不续传；断线将消息标记 `INTERRUPTED`，用户主动发起新请求才重新生成。取消端点置 `CANCELLED` 并尽力停止引擎任务。所有 SSE 使用同源 Cookie 和 CSRF 校验。\n\n上传采用单文件 multipart，初始限制 100 MiB/文件、3 个并发请求，最终值由 P0 容量测试确认；超限返回 413。每文件带 `Idempotency-Key`，按 SHA-256、KB 和版本策略去重。MVP 不支持分片。成功返回 202、`documentId` 和 `taskId`；状态轮询支持 ETag/If-None-Match。\n''')
+anchor='Java 业务库是组织、用户、成员关系和审批状态的事实源。通过 OIDC 主体映射关联引擎用户；角色同步和失败补偿需要可观测。检索权限过滤必须由服务端根据 ACL 构造，不能直接相信前端传来的 KB ID；引擎结果返回后再次校验。高密级数据优先拆分独立知识库/空间，降低过滤配置错误的影响。'
+ins(anchor,'\n\n权限变更通过事务性 outbox 同步引擎元数据；同步确认前 Java 本地过滤或拒绝该范围检索，保证撤权即时生效。前端 workspaceId/knowledgeBaseIds 只是范围提示，须与主体可访问集合求交。引用预览由 Java 授权代理提供，不生成长期对象存储链接。')
+ins('### 6.1 文档状态机\n','''\n\n跨系统上传、索引、重试和删除按 Saga 执行，不假设 PostgreSQL、MinIO、WeKnora 间存在分布式事务。每步记录 operation_id、远端 ID、幂等键、尝试次数和完成标记；worker 用租约安全重放。删除先冻结该版本检索，再请求引擎删除并验证检索不可见，随后进入 MinIO 保留期并按策略清理。失败标记 `COMPENSATION_REQUIRED` 并告警。每日对账文档、对象 key、引擎 ID/状态，生成孤儿对象/索引清单及受审计修复入口。\n''')
+ins('同时制定 RPO/RTO。没有恢复演练的备份不算已验证。引擎数据库和对象存储需按一致性要求协调快照时间，避免备份中存在索引引用但原文件缺失的状态。','''\n\n一致性检查点：暂停上传、删除、重建并等待在途任务收敛；记录 checkpoint_id；备份业务库、引擎库和 MinIO 对象清单/版本；恢复后核对 document/version、对象 SHA-256、engine_doc_id 和引用关系。若引擎索引不能保证一致恢复，则恢复业务库和 MinIO 后从权威原件重建。P0 暂定 RPO≤24 小时、RTO≤8 小时，业务负责人确认后列为上线门槛；隔离恢复演练须记录耗时和抽样 hash。''')
+ins('测试组合包括单元测试、API 集成测试、Compose 端到端测试、ACL 负向测试、检索评测、SQL 攻击测试、压力测试和灾备演练。建议先用 50–100 份经脱敏的真实文档和至少 100 个标注问题完成 P0。','P0 输出容量与质量基线：以 5 并发起测，建议首 Token P95≤8 秒、完整回答 P95≤45 秒、Recall@5≥85%、引用支持率≥90%、越权读取 0 例，并记录入库吞吐、存储增长和恢复时间。时延建议须在目标机器确认；未达标则调整模型、并发或硬件并重测，禁止静默回退公网模型。')
+p.write_text(s,encoding='utf-8')

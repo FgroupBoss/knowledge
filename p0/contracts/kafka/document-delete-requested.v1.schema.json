@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/document-delete-requested-v1.json",
+  "title": "DOCUMENT_DELETE_REQUESTED",
+  "description": "删除 Saga 事件。主题 kb.document.delete.v1，按 documentId 分区。删除顺序：冻结检索 → 引擎下线并确认可检索性消失 → 原件进入保留期 → DELETED。",
+  "type": "object",
+  "required": ["eventId", "eventType", "schemaVersion", "occurredAt", "tenantId", "documentId", "documentVersion", "operationId", "correlationId"],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "DOCUMENT_DELETE_REQUESTED" },
+    "schemaVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "kbId": { "type": "string", "format": "uuid" },
+    "documentId": { "type": "string", "format": "uuid" },
+    "documentVersion": { "type": "integer", "minimum": 1 },
+    "operationId": { "type": "string", "format": "uuid" },
+    "correlationId": { "type": "string", "format": "uuid" },
+    "actorId": { "type": "string", "format": "uuid", "description": "发起删除的主体，审计必填" },
+    "purge": { "type": "boolean", "default": false, "description": "false=按保留期处置原件；true=立即删除原件（仅管理员，需审计）" },
+    "reason": { "type": "string", "maxLength": 256 }
+  }
+}

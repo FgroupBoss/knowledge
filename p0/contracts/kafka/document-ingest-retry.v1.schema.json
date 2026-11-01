@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/document-ingest-retry-v1.json",
+  "title": "DOCUMENT_INGEST_RETRY",
+  "description": "退避重试事件。主题 kb.ingest.retry.v1。字段与 requested 同构（不复用 $ref，因为 base 的 additionalProperties:false 会拒绝本事件的新增字段），额外携带重试元数据；消费者按 operationId+attempt 去重，重复投递不得产生第二个有效索引。",
+  "type": "object",
+  "required": [
+    "eventId", "eventType", "schemaVersion", "occurredAt",
+    "tenantId", "documentId", "documentVersion", "operationId", "correlationId",
+    "attempt", "retryReason", "notBefore"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid", "description": "消费端幂等键之一" },
+    "eventType": { "const": "DOCUMENT_INGEST_RETRY" },
+    "schemaVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time", "description": "UTC" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "kbId": { "type": "string", "format": "uuid" },
+    "documentId": { "type": "string", "format": "uuid", "description": "Kafka partition key" },
+    "documentVersion": { "type": "integer", "minimum": 1 },
+    "operationId": { "type": "string", "format": "uuid", "description": "与 ingest_task 唯一约束对应；重试沿用同一 operationId，靠 attempt 递增区分" },
+    "correlationId": { "type": "string", "format": "uuid", "description": "等同 traceId，贯穿 API/任务/worker/引擎/审计" },
+    "aclVersion": { "type": "integer", "minimum": 1 },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 5, "description": "等于 p0.ingest.max-attempts 上限；越界即进 DLQ" },
+    "retryReason": {
+      "type": "string",
+      "enum": ["ENGINE_TIMEOUT", "ENGINE_UNAVAILABLE", "TRANSIENT_NETWORK", "MODEL_QUEUE_FULL", "LEASE_EXPIRED"],
+      "description": "原因归类（由 ErrorCode.transientFailure() 映射而来）；仅暂时性原因进入重试主题，永久错误直接置 FAILED，不重放"
+    },
+    "notBefore": { "type": "string", "format": "date-time", "description": "早于该时刻的消息消费者挂起不处理（退避由 broker 时间窗近似）" },
+    "lastErrorCode": { "type": "string", "description": "上一次失败的精确 ErrorCode 名称，retryReason 之外的细粒度信息在此" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "消费端下载原件后必须核对" }
+  }
+}

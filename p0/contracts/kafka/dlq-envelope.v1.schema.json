@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/dlq-envelope-v1.json",
+  "title": "DLQ envelope",
+  "description": "死信记录。主题 kb.ingest.dlq.v1，按 documentId 分区。原始事件放在 originalEvent 内，不重放未审计消息；运维入口必须先补审计再限权重放。tenantId/documentId/documentVersion/operationId/correlationId 是从 originalEvent 冗余出来的检索字段，运维按租户与文档巡检 DLQ 时不必解析 originalEvent；两处值必须一致。",
+  "type": "object",
+  "required": [
+    "dlqId", "eventType", "schemaVersion", "occurredAt",
+    "tenantId", "documentId", "originalTopic", "originalPartition", "originalOffset",
+    "failureCount", "finalErrorCode", "originalEvent", "recordedBy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "dlqId": { "type": "string", "format": "uuid", "description": "死信记录主键，也是 outbox/consumption 账本里的 eventId" },
+    "eventType": { "const": "INGEST_DEAD_LETTERED" },
+    "schemaVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "documentId": { "type": "string", "format": "uuid" },
+    "documentVersion": { "type": "integer", "minimum": 1 },
+    "operationId": { "type": "string", "format": "uuid", "description": "重试耗尽的那次业务操作" },
+    "correlationId": { "type": "string", "description": "贯穿 API/任务/worker/引擎/审计的 traceId" },
+    "originalTopic": { "type": "string", "description": "最后一条失败消息真实来自主题，重放要回到正确的入口" },
+    "originalPartition": { "type": "integer", "minimum": -1, "description": "-1 表示该死信不由消费者线程产生（如发布侧判定永久失败），无 broker 坐标" },
+    "originalOffset": { "type": "integer", "minimum": -1, "description": "同上，-1 为无坐标" },
+    "failureCount": { "type": "integer", "minimum": 1 },
+    "finalErrorCode": { "type": "string", "description": "最后一次失败的 ErrorCode 名称，永久/暂时均由 transientFailure() 判定入口" },
+    "lastErrorSummary": { "type": "string", "maxLength": 512, "description": "安全摘要：不得包含堆栈、Prompt、对象键与凭据" },
+    "retryTopics": { "type": "array", "items": { "type": "string" }, "description": "该文档在本次 operation 内经过的重试主题链" },
+    "originalEvent": { "type": "object", "description": "未修改的原始 payload，供审计与受控重放" },
+    "recordedBy": { "type": "string", "description": "worker 实例 id / consumer group instance / pod name" },
+    "replayState": { "type": "string", "enum": ["UNREVIEWED", "APPROVED", "REPLAYED", "DISCARDED"], "default": "UNREVIEWED" },
+    "replayedBy": { "type": ["string", "null"] },
+    "replayedAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "eventId": "6d9f3b21-1111-4222-8333-0000000000b1",
+  "eventType": "WIKI_RETRACT_REQUESTED",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-01T09:31:57.008Z",
+  "tenantId": "a1b2c3d4-0001-4a5b-8c9d-000000000001",
+  "workspaceId": "a1b2c3d4-0002-4a5b-8c9d-000000000002",
+  "kbId": "a1b2c3d4-0003-4a5b-8c9d-000000000003",
+  "pageId": "a1b2c3d4-0004-4a5b-8c9d-000000000004",
+  "operationId": "a1b2c3d4-0009-4a5b-8c9d-000000000009",
+  "correlationId": "a1b2c3d4-0007-4a5b-8c9d-000000000007",
+  "taskId": "a1b2c3d4-000a-4a5b-8c9d-00000000000a",
+  "publishedRevisionNo": 2,
+  "retirements": [
+    { "revisionNo": 2, "engineDocId": "wk-9d1c0b2a3f4e" },
+    { "revisionNo": 1, "engineDocId": "wk-1a2b3c4d5e6f" }
+  ],
+  "requestedBy": "user-7f3c1a",
+  "aclVersion": 7
+}

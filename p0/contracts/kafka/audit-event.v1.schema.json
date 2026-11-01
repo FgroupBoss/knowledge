@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/audit-event-v1.json",
+  "title": "AUDIT_EVENT",
+  "description": "审计外发事件。主题 kb.audit.v1，按 tenantId 分区（同租户链序 = 分区序）。生产方 AuditWriter.enqueueExport() 与 audit_event 行同事务写入 outbox，Kafka 掉线只延迟外发、不影响在线审计。载荷**不含文档正文、Prompt、对象键与凭据**。recordHash 是链上哈希，消费端可据此独立校验链自洽。无租户的登录失败事件（tenantId 为 null）不进外发通道，因此 tenantId 必填。序列化按 ObjectMapper 的 default-property-inclusion=non_null：值为 null 的键**不会出现在载荷里**，所以除 required 列表外的字段全部是可选的。",
+  "type": "object",
+  "required": ["auditId", "tenantId", "action", "result", "createdAt"],
+  "additionalProperties": false,
+  "properties": {
+    "auditId": { "type": "string", "format": "uuid", "description": "audit_event 主键" },
+    "tenantId": { "type": "string", "format": "uuid", "description": "Kafka partition key；null 不进外发通道" },
+    "actorId": { "type": "string", "maxLength": 128, "description": "主体用户 id；未识别主体时该键缺失" },
+    "action": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.]{2,63}$",
+      "description": "点分小写动作名（P1 既有约定：document.upload / chat.ask / kb.read / citation.preview）。P2 新增 14 个 wiki.* 与治理动作，清单见 p1/contracts/state-machine-wiki.md §9——设计文档 §6.1 用 UPPER_SNAKE 书写，裁定统一为点分小写以与既有行一致"
+    },
+    "resourceType": { "type": "string", "maxLength": 64 },
+    "resourceId": { "type": "string", "maxLength": 128 },
+    "result": { "type": "string", "enum": ["ALLOW", "DENY"], "description": "ALLOW/DENY 二值；写操作成功也记 ALLOW" },
+    "reasonCode": { "type": "string", "maxLength": 64, "description": "拒绝时等于 ErrorCode 名称，必须在 p1/contracts/error-codes.md 码表内" },
+    "traceId": { "type": "string", "maxLength": 64, "description": "与 HTTP X-Trace-Id、Kafka header p0-trace-id 同值" },
+    "seq": { "type": "integer", "minimum": 1, "description": "租户内单调，由 audit_head 行锁串行化产生" },
+    "recordHash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "canonical = tenantId|actorId|action|resourceType|resourceId|result|reasonCode|requestId|traceId|sourceIp|metadataJson|epochMilli|prevHash 的 SHA-256；时间先 truncatedTo(MILLIS)" },
+    "createdAt": { "type": "string", "format": "date-time", "description": "UTC ISO-8601，毫秒精度" }
+  }
+}

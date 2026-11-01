@@ -1,0 +1,34 @@
+# 交付物只保留：方案文档、源码、迁移副本、契约、脚本、可复现报告的输入清单与结果报告。
+# 下面是本机可再生产物，一律不入库。
+
+# 构建与运行产物
+target/
+*.class
+*.jar
+*.log
+p0/portal-poc/cp.txt
+
+# 本机口令与环境变量（真实值，绝不允许出现在交付物或历史里）
+p0/compose/secrets/
+p0/compose/.env
+p1/compose/secrets/
+p1/compose/.env
+p1/compose/nginx/certs/tls.crt
+p1/compose/nginx/certs/tls.key
+
+# 演练产生的本地数据（备份快照、临时语料、离线探测输出）
+p0/.tmp/
+.tmp/
+
+# 评测原始逐条记录里的问答正文属于业务语料，报告已含统计与哈希，原始行不入库
+p0/evaluation/reports/quality-raw.jsonl
+
+# 语料样本按方案第 10 节不随代码提交：清单与摘要入库，原件由 08-gen-corpus.py + 08-gen-office.sh 就地重生成
+p0/evaluation/corpus/
+
+# 工具缓存
+__pycache__/
+*.py[cod]
+.idea/
+.vscode/
+*.iml

@@ -1,0 +1,194 @@
+name: kb-p0
+
+# P0 验证环境：固定 tag + digest，禁止 latest 引用（minio/mc 仅按 digest 引用）。
+# p0-backend 为 internal 网络（容器无外网路由），业务流量只走它；
+# p0-ingress 仅用于把端口绑定到宿主机回环地址，供验证脚本和宿主门户进程使用。
+# 硬断网验证使用 docker-compose.offline.yml（去掉全部发布端口，门户进容器）。
+
+x-p0-labels: &p0-labels
+  labels:
+    com.acme.knowledge.phase: "P0"
+    com.acme.knowledge.usage: "verification-only"
+
+services:
+  mysql:
+    <<: *p0-labels
+    image: mysql:8.4@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364
+    container_name: kb-p0-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-flush-log-at-trx-commit=1
+      - --max-connections=120
+      - --log-error-verbosity=3
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_DATABASE_FILE: /run/secrets/mysql_database
+      MYSQL_USER_FILE: /run/secrets/mysql_app_user
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_app_password
+    secrets:
+      - mysql_root_password
+      - mysql_database
+      - mysql_app_user
+      - mysql_app_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks: [p0-backend, p0-ingress]
+    ports:
+      - "127.0.0.1:13306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h127.0.0.1 -u\"$$(cat /run/secrets/mysql_app_user)\" -p\"$$(cat /run/secrets/mysql_app_password)\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: 1500M
+
+  redis:
+    <<: *p0-labels
+    image: redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    container_name: kb-p0-redis
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        exec redis-server --requirepass "$$(cat /run/secrets/redis_password)"
+        --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+        --save "" --rename-command CONFIG ""
+    secrets: [redis_password]
+    volumes:
+      - redis_data:/data
+    networks: [p0-backend, p0-ingress]
+    ports:
+      - "127.0.0.1:16379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  kafka:
+    <<: *p0-labels
+    image: apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837
+    container_name: kb-p0-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,HOSTL://:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,HOSTL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,HOSTL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_RETENTION_HOURS: 72
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks: [p0-backend, p0-ingress]
+    ports:
+      - "127.0.0.1:29092:29092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 25s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1600M
+
+  minio:
+    <<: *p0-labels
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z@sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa
+    container_name: kb-p0-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    # 镜像内置 MINIO_ROOT_*_FILE 默认指向 access_key/secret_key，必须显式覆盖为实际 secret 路径；
+    # secret 文件不得含尾随换行，否则服务端与客户端算出的签名不一致。
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_access_key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_secret_key
+    secrets:
+      - minio_access_key
+      - minio_secret_key
+    volumes:
+      - minio_data:/data
+    networks: [p0-backend, p0-ingress]
+    ports:
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19001:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+
+  minio-init:
+    <<: *p0-labels
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    container_name: kb-p0-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        set -e;
+        mc alias set p0 http://minio:9000 "$$(cat /run/secrets/minio_access_key)" "$$(cat /run/secrets/minio_secret_key)";
+        mc mb --ignore-existing "p0/$${P0_MINIO_BUCKET}";
+        mc anonymous unset --recursive "p0/$${P0_MINIO_BUCKET}" || true;
+        mc version enable "p0/$${P0_MINIO_BUCKET}" || true;
+        mc ls "p0/$${P0_MINIO_BUCKET}" >/dev/null;
+        echo "bucket $${P0_MINIO_BUCKET} ready (private, versioning attempted)"
+    environment:
+      P0_MINIO_BUCKET: ${P0_MINIO_BUCKET:-kb-p0-originals-private}
+    secrets:
+      - minio_access_key
+      - minio_secret_key
+    networks: [p0-backend]
+    restart: "no"
+
+volumes:
+  mysql_data:
+  redis_data:
+  kafka_data:
+  minio_data:
+
+networks:
+  p0-backend:
+    internal: true
+  p0-ingress:
+    driver: bridge
+
+secrets:
+  mysql_root_password:
+    file: ./secrets/mysql_root_password.txt
+  mysql_database:
+    file: ./secrets/mysql_database.txt
+  mysql_app_user:
+    file: ./secrets/mysql_app_user.txt
+  mysql_app_password:
+    file: ./secrets/mysql_app_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  minio_access_key:
+    file: ./secrets/minio_access_key.txt
+  minio_secret_key:
+    file: ./secrets/minio_secret_key.txt

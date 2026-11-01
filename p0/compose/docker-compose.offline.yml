@@ -1,0 +1,18 @@
+# 断网（离线）演练覆盖：把对外那层网络也改成 internal，容器一律拿不到公网路由与外部 DNS。
+# 只用于验证「解析→索引→召回→问答→引用」这条链在物理不出网时仍然完整，绝不用于日常启动。
+#   docker compose -f docker-compose.yml -f docker-compose.offline.yml up -d
+services:
+  mysql:
+    networks: [p0-backend]
+  redis:
+    networks: [p0-backend]
+  kafka:
+    networks: [p0-backend]
+  minio:
+    networks: [p0-backend]
+
+networks:
+  p0-backend:
+    internal: true
+  p0-ingress:
+    internal: true

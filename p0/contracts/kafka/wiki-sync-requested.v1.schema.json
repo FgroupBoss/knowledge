@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/wiki-sync-requested-v1.json",
+  "title": "WIKI_SYNC_REQUESTED",
+  "description": "Wiki 发布同步事件。主题 kb.wiki.sync.v1，按 pageId 分区（同页面严格有序）。载荷只携带标识与摘要，**不含正文、Prompt、对象键与凭据**；消费者一律回查 MySQL 取正文（D-01：权威在行里，索引是派生物）。D-03：新版本 = 新引擎文档，previous* 字段告诉消费者确认新索引可见后要下线哪一份。接线状态见 p1/contracts/state-machine-wiki.md §6（生产方在 P2-W2，受准入 F-1 阻断）。",
+  "type": "object",
+  "required": [
+    "eventId", "eventType", "schemaVersion", "occurredAt",
+    "tenantId", "workspaceId", "kbId", "pageId", "revisionId", "revisionNo",
+    "operationId", "correlationId", "taskId", "bodyDigest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid", "description": "消费端幂等键（event_consumption 主键）；由 taskId+attempts 生成确定性 UUID，重复通知被账本挡住" },
+    "eventType": { "const": "WIKI_SYNC_REQUESTED" },
+    "schemaVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time", "description": "UTC，DATETIME(3) 精度（参与哈希链的时间必须先 truncatedTo(MILLIS)）" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "kbId": { "type": "string", "format": "uuid", "description": "Wiki 归属已有知识库作用域（D-06），引擎侧租户隔离靠它" },
+    "pageId": { "type": "string", "format": "uuid", "description": "Kafka partition key" },
+    "revisionId": { "type": "string", "format": "uuid" },
+    "revisionNo": { "type": "integer", "minimum": 1, "description": "引擎文档键含 pageId+revisionNo，不原位覆盖" },
+    "operationId": { "type": "string", "format": "uuid", "description": "与 wiki_sync_task 认领条件对应；重试沿用同一 operationId，靠 attempts 区分" },
+    "correlationId": { "type": "string", "format": "uuid", "description": "等同 traceId，贯穿 API→任务→worker→引擎→审计" },
+    "taskId": { "type": "string", "format": "uuid", "description": "wiki_sync_task.id" },
+    "attempts": { "type": "integer", "minimum": 0, "maximum": 6, "description": "上限等于 kb.wiki.max-attempts；越界即进 kb.wiki.dlq.v1" },
+    "notBefore": { "type": "string", "format": "date-time", "description": "退避水位：早于该时刻不得处理。认领靠 next_run_at <= now，不靠消费者 sleep" },
+    "bodyDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "wiki_revision.body_digest；消费者回读正文后必须核对，不符即 DOCUMENT_SIGNATURE_MISMATCH（永久，不进 retry）" },
+    "aclVersion": { "type": "integer", "minimum": 0, "description": "knowledge_base.acl_version 快照；引擎元数据必须带，读取时回查 MySQL 为准" },
+    "previousRevisionNo": { "type": ["integer", "null"], "minimum": 1, "description": "上一版已发布修订号；null 表示首次发布" },
+    "previousEngineDocId": { "type": ["string", "null"], "description": "确认新索引可见后要下线的引擎文档；下线失败进补偿，不影响新版本生效" }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "auditId": "3f2a1c94-8b77-4e2f-9a11-6d0c5b7e1a44",
+  "tenantId": "a1b2c3d4-0001-4a5b-8c9d-000000000001",
+  "actorId": "user-7f3c1a",
+  "action": "wiki.submit",
+  "resourceType": "wiki_revision",
+  "resourceId": "b7c1d9e2-2222-4333-8444-000000000002",
+  "result": "ALLOW",
+  "traceId": "c1d2e3f400000000000000000000abcd",
+  "seq": 41,
+  "recordHash": "9f2c1d70b5a4e6c83d0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f",
+  "createdAt": "2026-11-01T09:12:44.217Z"
+}

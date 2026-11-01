@@ -1,0 +1,1134 @@
+<!DOCTYPE html><html class="theme-default" display="false" lang="zh-cn"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="renderer" content="webkit"><title>项目列表 - 禅道</title><link rel="icon" href="/favicon.ico" type="image/x-icon" /><link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" /><script id="configJS">;(function(){window.config = {"webRoot":"\/","debug":false,"appName":"","cookieLife":30,"requestType":"GET","requestFix":"-","moduleVar":"m","methodVar":"f","viewVar":"t","version":"22.6","vision":"rnd","visions":{"rnd":"研发综合界面","lite":"运营管理界面"},"defaultView":"html","themeRoot":"\/theme\/","currentModule":"project","currentMethod":"browse","rawModule":"project","rawMethod":"browse","clientLang":"zh-cn","clientLangs":["zh-cn","zh-tw","en"],"requiredFields":"","router":"\/index.php","save":"保存","expand":"展开全部","runMode":"","timeout":30000,"pingInterval":"","onlybody":"no","clientCache":true,"morphUpdate":true,"account":"admin","zin":true,"maxUploadSize":"100M"};}());</script><link id="zuiCSS" rel="stylesheet" href="/js/zui3/zui.zentao.css?v=22.6" /><link id="zuiTheme" rel="stylesheet" href="/js/zui3/themes/default.css?v=22.6" /><script id="zuiJS" src="/js/zui3/zui.zentao.js?v=22.6"></script><script>;(function(){$.setLibRoot("\/js\/zui3\/");}());</script><script>;(function(){window.zin = {};}());</script><script src="/js/zui3/zin.js?v=22.6"></script></head><body><style class="zin-page-css" data-id="project-browse">.items-center {align-items: center !important;}
+#ignore {text-decoration: underline; cursor: pointer; color: #ef7b0f;}
+
+#project-model {font-weight: 500; font-size: 14px;}
+.items-center {align-items: center !important}
+
+.programTip {width: 200px !important;}
+input[name="realEnd"] {width: 150px;}
+
+.table-empty-tip {padding: 80px 10px; text-align: center; background: #fff;}
+.table-empty-tip .btn {background-color: rgba(var(--color-primary-50-rgb),var(--tw-bg-opacity)); color: var(--nav-active-color); --tw-ring-color: rgba(var(--color-primary-50-rgb),var(--tw-bg-opacity));}
+#cards {flex-wrap: wrap; padding: 10px; background: #FFF;}
+#cards > .col {width: 25%; padding-left: 10px; padding-right: 10px;}
+@media screen and (max-width: 1500px) {#cards > .col {width: 33.3333333%;}}
+#cards .panel {margin: 10px 0; border: 1px solid rgb(var(--color-gray-300-rgb)); border-radius: 4px; box-shadow: none; height: 175px; background: #FFF;}
+#cards .panel:hover {border-color: rgb(var(--color-primary-500-rgb)); box-shadow: 0 0 10px 0 rgba(0,0,100,.25);}
+#cards .panel .panel-heading {justify-content: start; padding: 12px 24px 10px 16px;}
+#cards .panel .panel-heading .project-name {margin: 0 -8px; overflow: hidden; white-space: nowrap;}
+#cards .panel .panel-heading .project-status {min-width: 45px;}
+#cards .panel .panel-heading .label.wait {background: rgba(var(--color-gray-200-rgb),var(--tw-bg-opacity));}
+#cards .panel-body {padding: 0 16px 16px;}
+
+#cards .project-infos {font-size: 12px;}
+#cards .project-infos > span + span {margin-left: 15px;}
+#cards .project-infos > .budget {max-width: 75px; overflow: hidden; white-space: nowrap;}
+
+#cards .project-detail {margin-top: 10px;}
+#cards .project-detail .statistics-title {color: #5B606E; display: block;}
+#cards .project-detail .leftTasks, .totalLeft {display:block; font-size: 18px; font-weight: bold; color: #3C4353;}
+#cards .project-team {display:inline-block;}
+#cards .project-actions {display:inline-block; float: right; margin-bottom: 8px;}
+
+.m-project-browse .project-menu-actions {display: flex;}
+.m-project-browse .project-menu-actions > .menu-item > a:hover {background: none; color: var(--menu-hover-bg);}
+.m-project-browse .project-menu-actions > .menu-item > a > .item-icon {opacity: 1;}
+
+#cards #cardsFooter {width: 100%; display: flex; justify-content: end;}
+
+#moduleMenu > menu > li:last-child {margin-bottom: 10px;}
+.nav-item + li > .search-form-toggle {margin-left: 0.5rem}
+.search-form-toggle.active,
+.show-search-form #featureBar .search-form-toggle {--skin-text: var(--color-primary-500); --skin-ring: var(--color-primary-500)}
+.label.status-clarify, .label.status-draft {--tw-ring-color: #8166ee;}
+.label.status-cancel, .label.status-canceled, .label.status-investigate {--tw-ring-color: #838a9d;}
+.label.status-canceled, .label.status-closed, .label.status-testtask .label.status-done {--tw-ring-color: #9ea3b0;}
+.label.status-blocked, .label.status-hangup, .label.status-pause, .label.status-suspended {--tw-ring-color: #b89664;}
+.label.status-noreview, .label.status-reviewing, .label.status-wait .label.status-testcase {--tw-ring-color: #18a6fd;}
+.label.status-active .label.status-risk, .label.status-changed, .label.status-changing, .label.status-fail {--tw-ring-color: #fb2b2b;}
+.label.status-active, .label.status-asked, .label.status-normal, .label.status-unconfirmed, .label.status-wait {--tw-ring-color: #313c52;}
+.label.status-active .label.status-issue, .label.status-checking, .label.status-commenting, .label.status-confirmed, .label.status-doing {--tw-ring-color: #ff6f42;}
+.label.status-checked, .label.status-done, .label.status-pass, .label.status-replied, .label.status-resolved, .label.status-success {--tw-ring-color: #0dbb7d;}
+.module-menu {max-height: calc(100vh - 79px); display: flex; flex-direction: column; min-height: 32px; --menu-selected-bg: none;}
+.module-menu header a:hover > .icon {color: var(--color-primary-600) !important;}
+.module-menu .tree-item * {white-space: nowrap;}
+.module-menu .tree-item .item-content {color: var(--color-gray-700)}
+.module-menu .tree-item > .selected .item-content {color: var(--color-fore)}
+.module-menu > .tree.has-nested-items {padding-left: calc(2 * var(--space))}
+.has-module-menu-header #mainMenu {padding-left: 180px;}
+.module-menu-header.is-fixed {position: absolute; left: 0; top: -44px; width: 160px; height: 32px; border: 1px solid var(--color-border); justify-content: center; padding: 0 24px; border-right: 0;}
+.module-menu-header.is-fixed::before,
+.module-menu-header.is-fixed::after {content: ''; position: absolute; top: 0; right: -12px; width: 0; height: 0; border-style: solid; border-color: transparent transparent transparent var(--color-border); border-width: 15px 0 15px 12px;}
+.module-menu-header.is-fixed::after {right: -11px; border-color: transparent transparent transparent var(--color-canvas);}
+.has-module-menu-header.is-sidebar-left-collapsed .module-menu-header.is-fixed {left: var(--gutter-width)}
+.module-menu-header.is-fixed .module-title {font-size: var(--font-size-base);}
+.module-menu-header.is-fixed > .btn-close {position: absolute; right: 0; font-weight: normal;}
+.module-menu-header.is-fixed > .btn-close:not(:hover) {opacity: .5;}
+.sidebar > .module-menu-header.is-fixed {display: flex!important;}
+.sidebar-left > .module-menu {margin-right: -8px}
+.sidebar-left.is-expanded > .module-menu ~ .sidebar-gutter {margin-left: 4px}
+.sidebar-right.is-expanded > .module-menu ~ .sidebar-gutter {margin-right: 4px}
+.is-expanded > .module-menu ~ .sidebar-gutter > .gutter-toggle {opacity: 0}
+.has-module-menu-header .sidebar-left {transition-property: width;}
+.has-module-menu-header .module-menu {max-height: calc(100vh - 105px); }
+.has-module-menu-header .module-menu > .tree {padding-top: 8px; padding-bottom: 8px;}
+#heading>[data-zui-dropmenu]+div .dropmenu-btn>.text,#heading>[data-zui-dropmenu]+div+div .dropmenu-btn>.text{max-width:120px}
+#navbar {position: relative;}
+#navbar .nav[z-use-sortable] > li:hover {cursor: grab !important;}
+#navbar .nav[z-use-sortable] > li > a:hover {cursor: grab !important;}
+#navbar .nav li.nav-divider.divider {border: none; width: 1px; background: currentColor; margin: 0; padding-left: var(--nav-divider-margin); padding-right: var(--nav-divider-margin); box-sizing: content-box; background-clip: content-box;}
+
+#navbarHeading {position: absolute; top: 0; left: 1rem; bottom: 0; display: flex; align-items: center; justify-content: center;}
+#navbar .nav-item.is-rsh-fixed.order-last {order: 10000}
+@media (min-width: 1400px) {#navbarHeading{left: 0}}
+#heading {z-index: 5}
+.in-workspace #heading {display: none;}
+#mainNavbar {padding-left: 1rem; padding-right: 1rem;}
+#mainNavbar .main-navbar-left {position: absolute; z-index: 2;}
+#mainNavbar .main-navbar-left #switcher {position: relative; top: 5px; border: 1px solid rgb(var(--color-primary-500-rgb));}
+#mainNavbar .main-navbar-left #switcher > .dropmenu-btn {background: #FFF;}
+#mainNavbar .main-navbar-left #switcher > .dropmenu-btn:before {background: unset;}
+#mainNavbar .main-navbar-left #switcher:after, #mainNavbar .main-navbar-left #switcher:before {position: absolute; display: block; width: 0; height: 0; content: ' '; border-style: solid; border-width: 17px 0 17px 8px; top: -1px;}
+#mainNavbar .main-navbar-left #switcher:before {border-color: transparent transparent transparent rgb(var(--color-primary-500-rgb)); right: -8px;}
+#mainNavbar .main-navbar-left #switcher:after {border-color: transparent transparent transparent #FFF; right: -7px; border-radius: 2px;}
+#mainNavbar .main-navbar-left #switcher .icon-angle-right {display: none;}
+#mainNavbar .main-navbar-left #switcher .caret {color: rgb(var(--color-link-hover-rgb));}
+#mainNavbar .main-navbar-left #switcher .text {color: rgb(var(--color-primary-500-rgb));}
+#mainNavbar .nav[z-use-sortable] > li:hover {cursor: grab !important;}
+#mainNavbar .nav[z-use-sortable] > li > a:hover {cursor: grab !important;}</style><header id="header"><div class="container"><div id="heading"><div class="toolbar"><a class="toolbar-item ghost btn btn-default" title="地盘" href="/index.php?m=my&amp;f=index"><i class="icon icon-menu-my"></i><span class="text">地盘</span></a></div></div><nav id="navbar" zui-init="$element.off('.zin.on');$element.on('contextmenu.zin.on',&quot;.nav-item:not(.nav-dropdown) &gt; a, .nav-divider&quot;,function(event,args){
+const $this = $(this);
+const target = event.target;
+handleNavbarContextmenu(event,this);
+});"><menu class="nav" data-navbar-group="my" zui-create zui-create-ResponsiveNavHelper="{&quot;container&quot;:&quot;parent&quot;,&quot;more&quot;:{&quot;text&quot;:&quot;其他&quot;,&quot;caret&quot;:true},&quot;moreDropdown&quot;:{&quot;trigger&quot;:&quot;hover&quot;},&quot;watch&quot;:[&quot;container&quot;,&quot;#toolbar&quot;,&quot;#heading&quot;],&quot;getContainerSize&quot;:(container) =&gt; ($(container).width() - 20 - (2 * Math.max(($(&quot;#heading&quot;).outerWidth() || 0), $(&quot;#toolbar&quot;).outerWidth() || 0)))}" zui-init="$element.off('.zin.on');initPageNavbar([{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;仪表盘&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=index&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;index&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;index&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;日程&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=calendar&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;calendar&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;calendar&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;待处理&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=work&amp;mode=task&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;work&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;work&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;审批&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=audit&amp;browseType=all&amp;param=&amp;orderBy=time_desc&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;audit&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;audit&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;项目&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=project&quot;,&quot;active&quot;:true,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;project&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;project&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;执行&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=execution&amp;browseType=undone&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;execution&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;execution&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;贡献&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=contribute&amp;mode=task&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;contribute&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;contribute&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;icon-news&quot;,&quot;text&quot;:&quot;动态&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=dynamic&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;dynamic&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;dynamic&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;联系人&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=managecontacts&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;contacts&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;contacts&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;class&quot;:&quot;&quot;,&quot;icon&quot;:&quot;&quot;,&quot;text&quot;:&quot;SSH密钥&quot;,&quot;url&quot;:&quot;\/index.php?m=my&amp;f=ssh&quot;,&quot;active&quot;:false,&quot;target&quot;:&quot;&quot;,&quot;data-id&quot;:&quot;ssh&quot;,&quot;data-app&quot;:null,&quot;hidden&quot;:false,&quot;zui-key&quot;:&quot;ssh&quot;}]);"><li class="nav-item item"><a href="/index.php?m=my&amp;f=index" target data-id="index" hidden="false" zui-key="index"><span class="text">仪表盘</span></a></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=calendar" target data-id="calendar" hidden="false" zui-key="calendar"><span class="text">日程</span></a></li><li class="nav-divider item divider"></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=work&amp;mode=task" target data-id="work" hidden="false" zui-key="work"><span class="text">待处理</span></a></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=audit&amp;browseType=all&amp;param=&amp;orderBy=time_desc" target data-id="audit" hidden="false" zui-key="audit"><span class="text">审批</span></a></li><li class="nav-item item"><a class="active" href="/index.php?m=my&amp;f=project" target data-id="project" hidden="false" zui-key="project"><span class="text">项目</span></a></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=execution&amp;browseType=undone" target data-id="execution" hidden="false" zui-key="execution"><span class="text">执行</span></a></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=contribute&amp;mode=task" target data-id="contribute" hidden="false" zui-key="contribute"><span class="text">贡献</span></a></li><li class="nav-divider item divider"></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=dynamic" target data-id="dynamic" hidden="false" zui-key="dynamic"><span class="text">动态</span></a></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=managecontacts" target data-id="contacts" hidden="false" zui-key="contacts"><span class="text">联系人</span></a></li><li class="nav-divider item divider"></li><li class="nav-item item"><a href="/index.php?m=my&amp;f=ssh" target data-id="ssh" hidden="false" zui-key="ssh"><span class="text">SSH密钥</span></a></li></menu></nav><div id="toolbar"><div class="toolbar mr-2" id="pageToolbar"></div><div class="toolbar gap-2"><button class="rounded-full bg-gray bg-opacity-10 text-primary-900 text-opacity-70 ring-0 w-9 btn square size-sm" data-toggle="dropdown" zui-toggle-dropdown="{&quot;placement&quot;:&quot;bottom&quot;,&quot;strategy&quot;:&quot;fixed&quot;,&quot;arrow&quot;:true,&quot;menu&quot;:{&quot;items&quot;:[{&quot;icon&quot;:&quot;todo&quot;,&quot;text&quot;:&quot;待办&quot;,&quot;url&quot;:&quot;\/index.php?m=todo&amp;f=create&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;icon&quot;:&quot;bug&quot;,&quot;text&quot;:&quot;Bug&quot;,&quot;url&quot;:&quot;\/index.php?m=bug&amp;f=create&amp;productID=0&amp;branch=&amp;extras=from=global&quot;},{&quot;icon&quot;:&quot;lightbulb&quot;,&quot;text&quot;:&quot;研发需求&quot;,&quot;url&quot;:&quot;\/index.php?m=story&amp;f=create&amp;productID=0&amp;branch=0&amp;moduleID=0&amp;storyID=0&amp;objectID=0&amp;bugID=0&amp;planID=0&amp;todoID=0&amp;extra=from=global&quot;},{&quot;icon&quot;:&quot;checkbox&quot;,&quot;text&quot;:&quot;任务&quot;,&quot;url&quot;:&quot;\/index.php?m=task&amp;f=create&amp;executionID=0&amp;storyID=0&amp;moduleID=0&amp;taskID=0&amp;todoID=0&amp;extra=from=global&quot;},{&quot;icon&quot;:&quot;sitemap&quot;,&quot;text&quot;:&quot;用例&quot;,&quot;url&quot;:&quot;\/index.php?m=testcase&amp;f=create&amp;productID=0&amp;branch=&amp;moduleID=0&amp;from=&amp;param=0&amp;storyID=0&amp;extras=from=global&quot;},{&quot;icon&quot;:&quot;doc&quot;,&quot;text&quot;:&quot;文档&quot;,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;url&quot;:&quot;\/index.php?m=doc&amp;f=selectLibType&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;icon&quot;:&quot;run&quot;,&quot;text&quot;:&quot;执行&quot;,&quot;url&quot;:&quot;\/index.php?m=execution&amp;f=create&amp;projectID=0&amp;executionID=0&amp;copyExecutionID=0&amp;planID=0&amp;confirm=no&amp;productID=0&amp;extra=from=global&quot;},{&quot;icon&quot;:&quot;project&quot;,&quot;text&quot;:&quot;项目&quot;,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=createGuide&amp;programID=0&amp;from=global&quot;},{&quot;icon&quot;:&quot;product&quot;,&quot;text&quot;:&quot;产品&quot;,&quot;url&quot;:&quot;\/index.php?m=product&amp;f=create&amp;programID=&amp;extra=from=global&quot;},{&quot;icon&quot;:&quot;program&quot;,&quot;text&quot;:&quot;项目集&quot;,&quot;url&quot;:&quot;\/index.php?m=program&amp;f=create&amp;parentProgramID=0&amp;charterID=0&amp;extra=from=global&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;icon&quot;:&quot;cube&quot;,&quot;text&quot;:&quot;空间&quot;,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-width&quot;:&quot;75%&quot;,&quot;url&quot;:&quot;\/index.php?m=kanban&amp;f=createSpace&amp;onlybody=yes&quot;},{&quot;icon&quot;:&quot;kanban&quot;,&quot;text&quot;:&quot;看板&quot;,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-width&quot;:&quot;75%&quot;,&quot;url&quot;:&quot;\/index.php?m=kanban&amp;f=create&amp;onlybody=yes&quot;}],&quot;id&quot;:&quot;quickAddMenu&quot;,&quot;style&quot;:{&quot;color&quot;:&quot;var(--color-fore)&quot;}}}" id="quickAddMenu-toggle" type="button"><i class="icon icon-plus-solid-circle icon-lg"></i></button><button class="rounded-full bg-gray bg-opacity-10 text-primary-900 text-opacity-70 ring-0 w-9 btn square size-sm" id="messageBar" data-on="click" data-call="fetchMessage" data-fetcher="/index.php?m=message&amp;f=ajaxGetDropMenu" data-toggle="dropdown" zui-toggle-dropdown="{&quot;placement&quot;:&quot;bottom-end&quot;,&quot;arrow&quot;:true,&quot;offset&quot;:{&quot;alignmentAxis&quot;:-50}}" type="button"><i class="icon icon-bell icon-lg"></i></button><menu class="menu dropdown-menu not-hide-menu messageDropdownBox" style="padding: 0;"><div id="dropdownMessageMenu"></div></menu><a class="w-7 h-7 cursor-pointer" caret="false" data-toggle="dropdown" zui-toggle-dropdown="{&quot;placement&quot;:&quot;bottom-end&quot;,&quot;strategy&quot;:&quot;fixed&quot;,&quot;arrow&quot;:true,&quot;menu&quot;:{&quot;items&quot;:[{&quot;url&quot;:&quot;\/index.php?m=my&amp;f=profile&amp;onlybody=yes&quot;,&quot;leadingClass&quot;:&quot;row items-center gap-2 px-2 py-1 text-inherit&quot;,&quot;icon&quot;:&quot; hidden&quot;,&quot;title&quot;:&quot;admin&quot;,&quot;titleClass&quot;:&quot;text-lg&quot;,&quot;subtitle&quot;:null,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-size&quot;:700,&quot;data-id&quot;:&quot;profile&quot;,&quot;leading&quot;:{&quot;html&quot;:&quot;&lt;div class=\&quot;avatar rounded-full has-text has-text-1\&quot; style=\&quot;background: hsl(83, 40%, 60%); color: #ffffff; width: 32px; height: 32px; font-size: 16px;\&quot;&gt;&lt;div class=\&quot;avatar-text\&quot; data-actualSize=\&quot;32\&quot;&gt;A&lt;\/div&gt;&lt;\/div&gt;&quot;,&quot;className&quot;:&quot;center mr-1&quot;}},{&quot;type&quot;:&quot;divider&quot;},{&quot;url&quot;:&quot;\/index.php?m=my&amp;f=profile&amp;onlybody=yes&quot;,&quot;icon&quot;:&quot;account&quot;,&quot;text&quot;:&quot;个人档案&quot;,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-size&quot;:700,&quot;data-id&quot;:&quot;profile&quot;},{&quot;url&quot;:&quot;\/index.php?m=my&amp;f=changepassword&amp;onlybody=yes&quot;,&quot;icon&quot;:&quot;cog-outline&quot;,&quot;text&quot;:&quot;修改密码&quot;,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-size&quot;:&quot;sm&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;url&quot;:&quot;\/index.php?m=tutorial&amp;f=start&quot;,&quot;icon&quot;:&quot;guide&quot;,&quot;text&quot;:&quot;使用教程&quot;,&quot;class&quot;:&quot;800&quot;,&quot;outerClass&quot;:&quot;user-tutorial&quot;,&quot;data-width&quot;:700,&quot;data-class-name&quot;:&quot;modal-inverse tutorial-start&quot;,&quot;data-headerless&quot;:true,&quot;data-backdrop&quot;:true,&quot;data-keyboard&quot;:true,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;},{&quot;text&quot;:&quot;手册&quot;,&quot;icon&quot;:&quot;help&quot;,&quot;url&quot;:&quot;https:\/\/www.zentao.net\/book\/zentaopms\/38.html?fullScreen=zentao&amp;theme=default&quot;,&quot;attrs&quot;:{&quot;data-app&quot;:&quot;help&quot;}},{&quot;type&quot;:&quot;divider&quot;},{&quot;url&quot;:&quot;\/index.php?m=my&amp;f=preference&amp;showTip=false&amp;onlybody=yes&quot;,&quot;icon&quot;:&quot;controls&quot;,&quot;text&quot;:&quot;个性化设置&quot;,&quot;data-width&quot;:700,&quot;innerClass&quot;:null,&quot;data-toggle&quot;:&quot;modal&quot;},{&quot;text&quot;:&quot;主题&quot;,&quot;icon&quot;:&quot;theme&quot;,&quot;key&quot;:&quot;theme&quot;,&quot;items&quot;:[{&quot;text&quot;:&quot;禅道蓝&quot;,&quot;data-value&quot;:&quot;default&quot;,&quot;url&quot;:&quot;javascript:selectTheme(\&quot;default\&quot;)&quot;,&quot;selected&quot;:true},{&quot;text&quot;:&quot;青春蓝&quot;,&quot;data-value&quot;:&quot;blue&quot;,&quot;url&quot;:&quot;javascript:selectTheme(\&quot;blue\&quot;)&quot;,&quot;selected&quot;:false},{&quot;text&quot;:&quot;叶兰绿&quot;,&quot;data-value&quot;:&quot;green&quot;,&quot;url&quot;:&quot;javascript:selectTheme(\&quot;green\&quot;)&quot;,&quot;selected&quot;:false},{&quot;text&quot;:&quot;赤诚红&quot;,&quot;data-value&quot;:&quot;red&quot;,&quot;url&quot;:&quot;javascript:selectTheme(\&quot;red\&quot;)&quot;,&quot;selected&quot;:false},{&quot;text&quot;:&quot;萱萱紫&quot;,&quot;data-value&quot;:&quot;purple&quot;,&quot;url&quot;:&quot;javascript:selectTheme(\&quot;purple\&quot;)&quot;,&quot;selected&quot;:false},{&quot;text&quot;:&quot;黑莓黑&quot;,&quot;data-value&quot;:&quot;blackberry&quot;,&quot;url&quot;:&quot;javascript:selectTheme(\&quot;blackberry\&quot;)&quot;,&quot;selected&quot;:false}],&quot;listProps&quot;:{&quot;getItem&quot;:(item) =&gt; {item.selected = item[&quot;data-value&quot;] === $.cookie.get(&quot;theme&quot;); return item;}}},{&quot;text&quot;:&quot;Language&quot;,&quot;icon&quot;:&quot;lang&quot;,&quot;items&quot;:[{&quot;text&quot;:&quot;简体&quot;,&quot;data-value&quot;:&quot;zh-cn&quot;,&quot;url&quot;:&quot;javascript:selectLang(\&quot;zh-cn\&quot;)&quot;,&quot;active&quot;:true},{&quot;text&quot;:&quot;繁體&quot;,&quot;data-value&quot;:&quot;zh-tw&quot;,&quot;url&quot;:&quot;javascript:selectLang(\&quot;zh-tw\&quot;)&quot;,&quot;active&quot;:false},{&quot;text&quot;:&quot;English&quot;,&quot;data-value&quot;:&quot;en&quot;,&quot;url&quot;:&quot;javascript:selectLang(\&quot;en\&quot;)&quot;,&quot;active&quot;:false}]},{&quot;type&quot;:&quot;divider&quot;},{&quot;icon&quot;:&quot;mobile&quot;,&quot;text&quot;:&quot;下载移动端&quot;,&quot;items&quot;:[{&quot;content&quot;:{&quot;html&quot;:&quot;&lt;img src='\/static\/images\/app-qrcode.png' \/&gt;&quot;,&quot;style&quot;:&quot;width: 100px; heigth: 100px;&quot;}}]},{&quot;text&quot;:&quot;关于禅道&quot;,&quot;icon&quot;:&quot;about&quot;,&quot;url&quot;:&quot;\/index.php?m=misc&amp;f=about&quot;,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;innerClass&quot;:null},{&quot;type&quot;:&quot;html&quot;,&quot;className&quot;:&quot;menu-item&quot;,&quot;html&quot;:&quot;&lt;a href='https:\/\/api.zentao.net\/goto.php?item=aiux' class='link-aiux listitem item-inner menu-item-inner state' target='_blank'&gt;&lt;i class='icon icon-aiux item-icon'&gt;&lt;\/i&gt;&lt;div class='item-content text'&gt;艾体验设计&lt;\/div&gt;&lt;\/a&gt;&quot;},{&quot;type&quot;:&quot;divider&quot;},{&quot;text&quot;:&quot;退出&quot;,&quot;url&quot;:&quot;javascript:$.apps.logout()&quot;,&quot;icon&quot;:&quot;exit&quot;}],&quot;id&quot;:&quot;userMenu&quot;,&quot;style&quot;:{&quot;color&quot;:&quot;var(--color-fore)&quot;}}}" id="userMenu-toggle"><div class="avatar rounded-full has-text has-text-1" style="background: hsl(83, 40%, 60%); color: #ffffff; width: 28px; height: 28px; font-size: 14px;"><div class="avatar-text" data-actualSize="28">A</div></div></a></div></div></div></header><div id="main"><div class="container" id="mainContainer"><div id="mainMenu"><div id="featureBar"><menu class="nav nav-compact nav-feature" zui-create zui-create-ResponsiveNavHelper="{&quot;container&quot;:&quot;parent&quot;,&quot;mergeDropdown&quot;:true,&quot;getContainerSize&quot;:(container) =&gt; (Array.from($(container).children()).reduce((acc, item) =&gt; acc - (item.hasAttribute(&quot;z-use-responsivenavhelper&quot;) ? 0 : (item.clientWidth + 20)), container.clientWidth - 32)),&quot;fixedItems&quot;:(_,ele) =&gt; {if($(ele).find(&quot;.search-form-toggle,.fixed-item&quot;).length) {$(ele).css(&quot;order&quot;, 10000);return true} return false}}"><li class="nav-item item"><a href="/index.php?m=project&amp;f=browse&amp;programID=0&amp;status=all&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage=15" data-id="all" data-load="table" data-app="" title="全部"><span class="text text-ellipsis max-w-32">全部</span></a></li><li class="nav-item item"><a href="/index.php?m=project&amp;f=browse&amp;programID=0&amp;status=undone&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage=15" data-id="undone" data-load="table" data-app="" title="未完成"><span class="text text-ellipsis max-w-32">未完成</span></a></li><li class="nav-item item"><a href="/index.php?m=project&amp;f=browse&amp;programID=0&amp;status=wait&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage=15" data-id="wait" data-load="table" data-app="" title="未开始"><span class="text text-ellipsis max-w-32">未开始</span></a></li><li class="nav-item item"><a class="active" href="/index.php?m=project&amp;f=browse&amp;programID=0&amp;status=doing&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage=15" data-id="doing" data-load="table" data-app="" title="进行中"><span class="text text-ellipsis max-w-32">进行中</span><span class="label size-sm canvas ring-0 rounded-md">0</span></a></li><li class="nav-item nav-dropdown item"><a data-id="more" title="更多" data-toggle="dropdown" zui-toggle-dropdown="{&quot;menu&quot;:{&quot;items&quot;:[{&quot;text&quot;:&quot;已挂起&quot;,&quot;hint&quot;:&quot;已挂起&quot;,&quot;active&quot;:false,&quot;attrs&quot;:{&quot;data-id&quot;:&quot;suspended&quot;,&quot;data-load&quot;:&quot;table&quot;,&quot;data-target&quot;:null,&quot;data-app&quot;:&quot;&quot;,&quot;data-success&quot;:() =&gt; zui.updateSearchForm('project')},&quot;url&quot;:&quot;\/index.php?m=project&amp;f=browse&amp;programID=0&amp;status=suspended&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage=15&quot;},{&quot;text&quot;:&quot;已延期&quot;,&quot;hint&quot;:&quot;已延期&quot;,&quot;active&quot;:false,&quot;attrs&quot;:{&quot;data-id&quot;:&quot;delayed&quot;,&quot;data-load&quot;:&quot;table&quot;,&quot;data-target&quot;:null,&quot;data-app&quot;:&quot;&quot;,&quot;data-success&quot;:() =&gt; zui.updateSearchForm('project')},&quot;url&quot;:&quot;\/index.php?m=project&amp;f=browse&amp;programID=0&amp;status=delayed&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage=15&quot;},{&quot;text&quot;:&quot;已关闭&quot;,&quot;hint&quot;:&quot;已关闭&quot;,&quot;active&quot;:false,&quot;attrs&quot;:{&quot;data-id&quot;:&quot;closed&quot;,&quot;data-load&quot;:&quot;table&quot;,&quot;data-target&quot;:null,&quot;data-app&quot;:&quot;&quot;,&quot;data-success&quot;:() =&gt; zui.updateSearchForm('project')},&quot;url&quot;:&quot;\/index.php?m=project&amp;f=browse&amp;programID=0&amp;status=closed&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage=15&quot;}]}}"><span class="text text-ellipsis max-w-32">更多</span><span class="caret-down"></span></a></li><div class="checkbox-primary ml-2 mr-4"><input type="checkbox" id="involved_" name="involved" zui-init="$element.off('.zin.on');$element.on('change.zin.on',function(event,args){
+const $this = $(this);
+const target = event.target;
+handleChangeInvolved(event);
+});" /><label for="involved_">我参与的</label></div><li><button class="search-form-toggle rounded-full gray-300-outline size-sm btn" zui-toggle="searchform" zui-toggle-searchform="{&quot;module&quot;:&quot;project&quot;,&quot;target&quot;:null,&quot;url&quot;:null}" type="button" zui-init="$element.off('.zin.on');$element.closest(&quot;.show-search-form&quot;).removeClass(&quot;show-search-form&quot;).find(&quot;.search-form[data-module=project]&quot;).remove();"><i class="icon icon-search"></i><span class="text">搜索</span></button></li></menu></div><div class="toolbar" id="actionBar" zui-init="$element.off('.zin.on');$element.on('click.zin.on',&quot;.export&quot;,function(event,args){
+const $this = $(this);
+const target = event.target;
+handleClickExportBtn(event);
+});
+$element.on('click.zin.on',&quot;.switchButton&quot;,function(event,args){
+const $this = $(this);
+const target = event.target;
+handleClickSwitchButton(event);
+});"><div class="btn-group" type="btnGroup"><button class="btn-icon switchButton text-primary btn square" data-type="bylist" title="列表" type="button"><i class="icon icon-list"></i></button><button class="switchButton btn-icon btn square" data-type="bycard" title="卡片" type="button"><i class="icon icon-cards-view"></i></button></div><a class="toolbar-item ghost export btn btn-default" data-toggle="modal" href="/index.php?m=project&amp;f=export&amp;status=doing&amp;orderBy=order_asc"><i class="icon icon-export"></i><span class="text">导出</span></a><a class="toolbar-item primary create-project-btn btn btn-default" data-toggle="modal" data-position="center" href="/index.php?m=project&amp;f=createGuide&amp;programID=0"><i class="icon icon-plus"></i><span class="text">创建项目</span></a></div></div><div class="row has-sidebar-left" id="mainContent"><div class="sidebar" zui-create zui-create-sidebar="{&quot;side&quot;:&quot;left&quot;,&quot;toggleBtn&quot;:true,&quot;preserve&quot;:&quot;project-browse&quot;,&quot;parent&quot;:&quot;#mainContainer&quot;,&quot;maxWidth&quot;:360,&quot;minWidth&quot;:160,&quot;width&quot;:160,&quot;dragToResize&quot;:true,&quot;onToggle&quot;:null}"><header class="module-menu-header h-10 flex items-center pl-4 flex-none gap-3 is-fixed rounded rounded-r-none canvas"><span class="module-title text-lg font-semibold clip">全部</span></header><div class="module-menu shadow ring rounded bg-canvas col relative" id="moduleMenu" zui-init="$element.off('.zin.on');$(&quot;#mainContainer&quot;).addClass(&quot;has-module-menu-header&quot;);"><menu class="tree tree-lines col flex-auto scrollbar-hover overflow-y-auto overflow-x-hidden pr-2 pl-4" zui-create zui-create-tree="{&quot;defaultNestedShow&quot;:true,&quot;hover&quot;:true,&quot;lines&quot;:true,&quot;preserve&quot;:&quot;project-browse&quot;,&quot;activeKey&quot;:&quot;0&quot;,&quot;items&quot;:[]}"></menu><a class="m-4 mt-0 btn primary-pale" data-app="" data-toggle="modal" data-size="md" href="/index.php?m=project&amp;f=programTitle"><span class="text">列表设置</span></a><div class="row justify-end p-1 flex-none"><div></div><button class="btn square ghost size-sm" title="收起" type="button" zui-init="$element.off('.zin.on');$element.on('click.zin.on',function(event,args){
+const $this = $(this);
+const target = event.target;
+$this.closest(&quot;.sidebar&quot;).sidebar(&quot;toggle&quot;);;
+});" id='zin_project_browse_h_45'><i class="icon icon-menu-arrow-left text-gray"></i></button></div></div></div><div class="main-content-cell" id="mainContentCell"><div id="table-project-browse_table" zui-create zui-create-dtable="{&quot;className&quot;:&quot;shadow ring rounded&quot;,&quot;extensible&quot;:true,&quot;id&quot;:&quot;table-project-browse&quot;,&quot;groupDivider&quot;:true,&quot;cols&quot;:[{&quot;width&quot;:80,&quot;fixed&quot;:&quot;left&quot;,&quot;required&quot;:true,&quot;title&quot;:&quot;ID&quot;,&quot;name&quot;:&quot;id&quot;,&quot;type&quot;:&quot;checkID&quot;,&quot;sortType&quot;:true,&quot;checkbox&quot;:true,&quot;group&quot;:1,&quot;order&quot;:0},{&quot;width&quot;:0.44,&quot;fixed&quot;:&quot;left&quot;,&quot;required&quot;:true,&quot;title&quot;:&quot;项目名称&quot;,&quot;name&quot;:&quot;name&quot;,&quot;type&quot;:&quot;title&quot;,&quot;sortType&quot;:true,&quot;link&quot;:&quot;\/index.php?m=project&amp;f=index&amp;projectID={id}&quot;,&quot;iconRender&quot;:function(val,row){ if(row.data.model == 'scrum') return 'icon-sprint text-gray'; if(['waterfall', 'kanban', 'agileplus', 'waterfallplus', 'ipd'].indexOf(row.data.model) !== -1) return 'icon-' + row.data.model + ' text-gray'; return '';},&quot;group&quot;:1,&quot;order&quot;:1},{&quot;width&quot;:108,&quot;title&quot;:&quot;负责人&quot;,&quot;name&quot;:&quot;PM&quot;,&quot;type&quot;:&quot;avatarBtn&quot;,&quot;sortType&quot;:true,&quot;link&quot;:&quot;\/index.php?m=user&amp;f=profile&amp;userID={PMUserID}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-size&quot;:&quot;sm&quot;,&quot;group&quot;:3,&quot;show&quot;:true,&quot;order&quot;:2},{&quot;width&quot;:&quot;120px&quot;,&quot;title&quot;:&quot;需求规模&quot;,&quot;type&quot;:&quot;count&quot;,&quot;group&quot;:4,&quot;show&quot;:true,&quot;sortType&quot;:false,&quot;name&quot;:&quot;storyPoints&quot;,&quot;order&quot;:3},{&quot;width&quot;:&quot;120px&quot;,&quot;title&quot;:&quot;需求条目数&quot;,&quot;type&quot;:&quot;number&quot;,&quot;show&quot;:true,&quot;group&quot;:4,&quot;sortType&quot;:false,&quot;name&quot;:&quot;storyCount&quot;,&quot;order&quot;:4},{&quot;width&quot;:92,&quot;title&quot;:&quot;执行数&quot;,&quot;type&quot;:&quot;count&quot;,&quot;group&quot;:4,&quot;show&quot;:4,&quot;sortType&quot;:false,&quot;name&quot;:&quot;executionCount&quot;,&quot;order&quot;:5},{&quot;width&quot;:96,&quot;title&quot;:&quot;预算&quot;,&quot;name&quot;:&quot;budget&quot;,&quot;type&quot;:&quot;money&quot;,&quot;group&quot;:5,&quot;show&quot;:true,&quot;sortType&quot;:true,&quot;order&quot;:6},{&quot;width&quot;:92,&quot;title&quot;:&quot;已投入&quot;,&quot;name&quot;:&quot;invested&quot;,&quot;type&quot;:&quot;count&quot;,&quot;group&quot;:5,&quot;show&quot;:true,&quot;sortType&quot;:false,&quot;order&quot;:7},{&quot;width&quot;:96,&quot;title&quot;:&quot;计划开始&quot;,&quot;name&quot;:&quot;begin&quot;,&quot;type&quot;:&quot;date&quot;,&quot;sortType&quot;:true,&quot;group&quot;:6,&quot;show&quot;:true,&quot;order&quot;:8},{&quot;width&quot;:96,&quot;title&quot;:&quot;计划完成&quot;,&quot;name&quot;:&quot;end&quot;,&quot;type&quot;:&quot;date&quot;,&quot;sortType&quot;:true,&quot;group&quot;:6,&quot;show&quot;:true,&quot;order&quot;:9},{&quot;width&quot;:64,&quot;title&quot;:&quot;进度&quot;,&quot;name&quot;:&quot;progress&quot;,&quot;type&quot;:&quot;progress&quot;,&quot;group&quot;:7,&quot;show&quot;:true,&quot;order&quot;:10},{&quot;minWidth&quot;:48,&quot;fixed&quot;:&quot;right&quot;,&quot;required&quot;:true,&quot;name&quot;:&quot;actions&quot;,&quot;title&quot;:&quot;操作&quot;,&quot;type&quot;:&quot;actions&quot;,&quot;sortType&quot;:false,&quot;width&quot;:&quot;140&quot;,&quot;list&quot;:{&quot;start&quot;:{&quot;icon&quot;:&quot;play&quot;,&quot;hint&quot;:&quot;启动项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=start&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;},&quot;close&quot;:{&quot;icon&quot;:&quot;off&quot;,&quot;hint&quot;:&quot;关闭项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=close&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-size&quot;:&quot;60rem&quot;},&quot;activate&quot;:{&quot;icon&quot;:&quot;magic&quot;,&quot;hint&quot;:&quot;激活项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=activate&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;},&quot;edit&quot;:{&quot;icon&quot;:&quot;edit&quot;,&quot;hint&quot;:&quot;编辑项目&quot;,&quot;url&quot;:{&quot;module&quot;:&quot;project&quot;,&quot;method&quot;:&quot;edit&quot;,&quot;params&quot;:&quot;projectID={id}&quot;}},&quot;suspend&quot;:{&quot;icon&quot;:&quot;pause&quot;,&quot;hint&quot;:&quot;挂起项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=suspend&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;},&quot;group&quot;:{&quot;icon&quot;:&quot;group&quot;,&quot;hint&quot;:&quot;团队&quot;,&quot;url&quot;:{&quot;module&quot;:&quot;project&quot;,&quot;method&quot;:&quot;team&quot;,&quot;params&quot;:&quot;projectID={id}&quot;}},&quot;perm&quot;:{&quot;icon&quot;:&quot;lock&quot;,&quot;hint&quot;:&quot;项目权限列表&quot;,&quot;url&quot;:{&quot;module&quot;:&quot;project&quot;,&quot;method&quot;:&quot;group&quot;,&quot;params&quot;:&quot;projectID={id}&quot;}},&quot;link&quot;:{&quot;icon&quot;:&quot;link&quot;,&quot;hint&quot;:&quot;关联产品&quot;,&quot;url&quot;:{&quot;module&quot;:&quot;project&quot;,&quot;method&quot;:&quot;manageProducts&quot;,&quot;params&quot;:&quot;projectID={id}&quot;}},&quot;whitelist&quot;:{&quot;icon&quot;:&quot;shield-check&quot;,&quot;hint&quot;:&quot;项目白名单&quot;,&quot;url&quot;:{&quot;module&quot;:&quot;project&quot;,&quot;method&quot;:&quot;whitelist&quot;,&quot;params&quot;:&quot;projectID={id}&quot;}},&quot;delete&quot;:{&quot;icon&quot;:&quot;trash&quot;,&quot;hint&quot;:&quot;删除项目&quot;,&quot;url&quot;:&quot;javascript:confirmDelete(\&quot;{id}\&quot;, \&quot;{name}\&quot;)&quot;}},&quot;menu&quot;:{&quot;0&quot;:{&quot;0&quot;:&quot;start|activate|close&quot;,&quot;other&quot;:[&quot;suspend&quot;,&quot;activate|close&quot;]},&quot;1&quot;:&quot;edit&quot;,&quot;2&quot;:&quot;group&quot;,&quot;3&quot;:&quot;perm&quot;,&quot;more&quot;:[&quot;link&quot;,&quot;whitelist&quot;,&quot;delete&quot;]},&quot;show&quot;:true,&quot;order&quot;:11,&quot;actionsMap&quot;:{&quot;start&quot;:{&quot;icon&quot;:&quot;play&quot;,&quot;hint&quot;:&quot;启动项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=start&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;text&quot;:&quot;&quot;,&quot;data-position&quot;:&quot;center&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;activate&quot;:{&quot;icon&quot;:&quot;magic&quot;,&quot;hint&quot;:&quot;激活项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=activate&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;text&quot;:&quot;&quot;,&quot;data-position&quot;:&quot;center&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;close&quot;:{&quot;icon&quot;:&quot;off&quot;,&quot;hint&quot;:&quot;关闭项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=close&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;data-size&quot;:&quot;60rem&quot;,&quot;text&quot;:&quot;&quot;,&quot;data-position&quot;:&quot;center&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;suspend&quot;:{&quot;icon&quot;:&quot;pause&quot;,&quot;hint&quot;:&quot;挂起项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=suspend&amp;projectID={id}&quot;,&quot;data-toggle&quot;:&quot;modal&quot;,&quot;text&quot;:&quot;&quot;,&quot;data-position&quot;:&quot;center&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;edit&quot;:{&quot;icon&quot;:&quot;edit&quot;,&quot;hint&quot;:&quot;编辑项目&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=edit&amp;projectID={id}&quot;,&quot;text&quot;:&quot;&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;group&quot;:{&quot;icon&quot;:&quot;group&quot;,&quot;hint&quot;:&quot;团队&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=team&amp;projectID={id}&quot;,&quot;text&quot;:&quot;&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;perm&quot;:{&quot;icon&quot;:&quot;lock&quot;,&quot;hint&quot;:&quot;项目权限列表&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=group&amp;projectID={id}&quot;,&quot;text&quot;:&quot;&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;link&quot;:{&quot;icon&quot;:&quot;link&quot;,&quot;hint&quot;:&quot;关联产品&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=manageProducts&amp;projectID={id}&quot;,&quot;text&quot;:&quot;&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;whitelist&quot;:{&quot;icon&quot;:&quot;shield-check&quot;,&quot;hint&quot;:&quot;项目白名单&quot;,&quot;url&quot;:&quot;\/index.php?m=project&amp;f=whitelist&amp;projectID={id}&quot;,&quot;text&quot;:&quot;&quot;,&quot;className&quot;:&quot; text-primary&quot;},&quot;delete&quot;:{&quot;icon&quot;:&quot;trash&quot;,&quot;hint&quot;:&quot;删除项目&quot;,&quot;url&quot;:&quot;javascript:confirmDelete(\&quot;{id}\&quot;, \&quot;{name}\&quot;)&quot;,&quot;text&quot;:&quot;&quot;,&quot;className&quot;:&quot; text-primary&quot;}}}],&quot;data&quot;:[],&quot;checkable&quot;:true,&quot;footToolbar&quot;:{&quot;items&quot;:[{&quot;type&quot;:&quot;btn-group&quot;,&quot;items&quot;:[{&quot;text&quot;:&quot;编辑&quot;,&quot;className&quot;:&quot;btn size-sm&quot;,&quot;btnType&quot;:&quot;secondary&quot;,&quot;data-url&quot;:&quot;\/index.php?m=project&amp;f=batchEdit&quot;,&quot;onClick&quot;:(e) =&gt; handleBatchBtnClick(e)}]}],&quot;btnProps&quot;:{&quot;className&quot;:&quot;secondary&quot;,&quot;size&quot;:&quot;sm&quot;}},&quot;orderBy&quot;:{&quot;order&quot;:&quot;asc&quot;},&quot;sortLink&quot;:&quot;\/index.php?m=project&amp;f=browse&amp;programID=0&amp;browseType=doing&amp;param=&amp;orderBy={name}_{sortType}&amp;recTotal=0&amp;recPerPage=15&amp;pageID=1&quot;,&quot;footPager&quot;:{&quot;page&quot;:1,&quot;recTotal&quot;:0,&quot;recPerPage&quot;:15,&quot;linkCreator&quot;:&quot;\/index.php?m=project&amp;f=browse&amp;programID=0&amp;browseType=doing&amp;param=&amp;orderBy=order_asc&amp;recTotal=0&amp;recPerPage={recPerPage}&amp;pageID={page}&quot;,&quot;items&quot;:[{&quot;type&quot;:&quot;info&quot;,&quot;text&quot;:&quot;暂时没有记录&quot;}],&quot;gap&quot;:0},&quot;customCols&quot;:false,&quot;onRenderCell&quot;:window.renderCell,&quot;emptyTip&quot;:{&quot;html&quot;:&quot;&lt;div class='text-gray'&gt;暂时没有项目&lt;\/div&gt;&lt;a class='btn primary-pale border-primary' href='\/index.php?m=project&amp;f=createGuide' data-toggle='modal' data-app='my'&gt;&lt;i class='icon icon-plus'&gt;&lt;\/i&gt; 创建项目&lt;\/a&gt;&quot;,&quot;className&quot;:&quot;row gap-4 items-center&quot;},&quot;createTip&quot;:&quot;创建项目&quot;,&quot;createLink&quot;:&quot;\/index.php?m=project&amp;f=createGuide&quot;,&quot;createAttr&quot;:&quot;data-toggle='modal'&quot;,&quot;customCol&quot;:true,&quot;checkInfo&quot;:function(_, layout)
+{
+    const checkedCount = this.getChecks().length;
+    if(checkedCount) return {html: &quot;已选择 &lt;strong&gt;{0}&lt;\/strong&gt; 项&quot;.replace('{0}', checkedCount)};
+    return {html: &quot;共 &lt;strong&gt;{recTotal}&lt;\/strong&gt; 项&quot;.replace('{recTotal}', this.layout.allRows.length)};
+},&quot;unassignedText&quot;:&quot;未指派&quot;}"></div></div></div></div></div><script class="zin-page-js" data-id="project-browse">;(function(){zui.defineFn();
+;(function(){window.setMultipleCell = function(value, info)
+{
+    if(!$.isArray(value)) value = value.toString().split(',');
+
+    value = value.filter((data) => data);
+    if(!value.length) return value;
+
+    pairs = info.col.setting.dataPairs;
+    const result = [];
+    const data   = $.isArray(value) ? value : value.split(',');
+    $.each(data, function(_, value)
+    {
+        if(value && pairs[value]) result.push(pairs[value]);
+    });
+    return result.join(info.col.setting.delimiter);
+};
+
+window.checkedChange = function(changes)
+{
+    if(!this._checkedRows) this._checkedRows = {};
+    Object.keys(changes).forEach((rowID) =>
+    {
+        const row = this.getRowInfo(rowID);
+        if(row !== undefined) this._checkedRows[rowID] = row.data;
+    });
+}
+
+window.insertListToDoc = function(tableID, blockType, blockID, insertListLink)
+{
+    const dtable      = zui.DTable.query($(tableID));
+    const myTable     = dtable.$;
+    const checkedList = Object.keys(myTable.state.checkedRows);
+    if(!checkedList.length) return;
+
+    let {cols} = dtable.options;
+    const data = checkedList.filter(rowID => myTable._checkedRows[rowID] !== undefined).map(rowID => myTable._checkedRows[rowID]);
+    const docID = getDocApp()?.docID;
+
+    const url = $.createLink('doc', 'buildZentaoList', `docID=${docID}&type=${blockType}&blockID=${blockID}`);
+    const formData = new FormData();
+    formData.append('cols', JSON.stringify(cols));
+    formData.append('data', JSON.stringify(data));
+    formData.append('idList', checkedList.join(','));
+    formData.append('url', insertListLink);
+    $.post(url, formData, function(resp)
+    {
+        resp = JSON.parse(resp);
+        if(resp.result == 'success')
+        {
+            const oldBlockID = resp.oldBlockID;
+            const newBlockID = resp.newBlockID;
+            zui.Modal.hide();
+            window.insertZentaoList && window.insertZentaoList(blockType, newBlockID, null, oldBlockID);
+        }
+    });
+}
+
+window.insertListToAI = function(tableID, blockType)
+{
+    const dtable      = zui.DTable.query($(tableID));
+    const myTable     = dtable.$;
+    const checkedList = Object.keys(myTable.state.checkedRows);
+    if(!checkedList.length) return;
+
+    const data = checkedList.filter(rowID => myTable._checkedRows[rowID] !== undefined).map(rowID => {
+        const item = myTable._checkedRows[rowID];
+        if(blockType === 'case' && typeof item.id === 'string' && item.id.startsWith('case_'))
+        {
+            item.id = item.caseID || parseInt(item.id.replace('case_', ''));
+        }
+        return item;
+    });
+    const url = $.createLink('ai', 'ajaxBatchCreateKnowledge', `knowledgeLibID=${knowledgeLibID}`);
+
+    const formData = new FormData();
+    formData.append('type', blockType);
+    formData.append('data', JSON.stringify(data));
+    formData.append('idList', checkedList.join(','));
+
+    $.ajaxSubmit({
+        url,
+        data: formData,
+        onSuccess: function() {zui.Modal.hide();}
+    });
+};}());
+;(function(){/**
+ * @type {string[]}
+ */
+const allNavbarItemNames = [];
+
+/**
+ * @type {Map<string, any>}
+ */
+const allNavbarItemMap = new Map();
+
+/**
+ * Get current navbar items data.
+ *
+ * @returns {Array<{name: string; order: number;}>}
+ */
+function getCurrentNavbarItems()
+{
+    const items         = [];
+    const $nav          = $('#navbar .nav');
+    const overflowItems = [];
+    $nav.children().each(function(index, element)
+    {
+        const $elm = $(element);
+        if($elm.hasClass('rsh-more')) return;
+
+        const $a       = $elm.find('a');
+        const menuItem = {};
+        menuItem.name  = $elm.is('.nav-divider') ? 'divider' : ($a.attr('data-id') || $a.attr('id'));
+        if(typeof $elm.data('hidden') != 'undefined') menuItem.hidden = true;
+
+        if($elm.hasClass('rsh-overflow-item')) overflowItems.push(menuItem);
+        else items.push(menuItem);
+    });
+    return [...items, ...overflowItems].map((item, index) => ({...item, order: index * 5}));
+}
+
+/**
+ * Generate navbar items to be added.
+ * @param {Cash} $item
+ * @param {(item: string) => void} onClick click handler of navbar item.
+ * @returns {Array<{text: string; onClick: () => void;}>}
+ */
+function generateAddNavbarItems($item, onClick)
+{
+    const items = canAddDivider($item)
+        ? [{
+            text: langData.divider,
+            onClick: () => {
+                onClick('divider');
+                saveNavbarToServer();
+            }
+        }]
+        : [];
+
+    const allNavbarItemIDSet = new Set(allNavbarItemMap.keys());
+    const curNavbarItems = getCurrentNavbarItems();
+    for(const {name} of curNavbarItems)
+    {
+        if(name === 'divider') continue;
+        allNavbarItemIDSet.delete(name);
+    }
+
+    if(allNavbarItemIDSet.size === 0) return items;
+    for(const name of allNavbarItemIDSet)
+    {
+        const item = allNavbarItemMap.get(name);
+        items.push(
+            {
+                text: item.text,
+                onClick: () => {
+                    onClick(name);
+                    saveNavbarToServer();
+                }
+            }
+        );
+    }
+    return items;
+}
+
+/**
+ * Checks whether the current navbar item can be hidden.
+ *
+ * @param {Cash} $item
+ * @returns {boolean}
+ */
+function canHideCurrentNavbar($item)
+{
+    if($item.is('.nav-divider')) return true;
+    if($item.is('.active')) return false;
+
+    const app = $.apps.getLastApp();
+    const appDefaultUrl = app.url;
+    const itemUrl = $item.attr('href');
+    if(itemUrl && itemUrl.includes(appDefaultUrl)) return false;
+    return true;
+}
+
+function getMenuName()
+{
+    const $nav = $('#navbar>.nav');
+    return $nav.attr($nav.attr('data-workspace') ? 'data-main-navbar-group' : 'data-navbar-group');
+}
+
+/**
+ * Save navbar to server.
+ */
+function saveNavbarToServer(items, menu)
+{
+    const url = $.createLink('custom', 'ajaxSetMenu');
+    items     = items || getCurrentNavbarItems();
+    menu      = menu ||getMenuName();
+    $.ajaxSubmit({url, data: {menu, items: JSON.stringify(items)}});
+}
+
+/**
+ * Restore navbar to server.
+ */
+function restoreNavbarToServer(options = {})
+{
+    const url  = $.createLink('custom', 'ajaxRestoreMenu');
+    const menu = getMenuName();
+    $.ajaxSubmit({url, data: {menu}, ...options});
+}
+
+/**
+ * Check whether current element can add a divider.
+ * @param {Cash} $item
+ * @returns {boolean}
+ */
+function canAddDivider($item)
+{
+    $item = $item.closest('li');
+    if($item.is('.divider'))        return false;
+    if($item.next().is('.divider')) return false;
+    if($item.is(':last-child'))     return false;
+    return true;
+}
+
+window.handleNavbarContextmenu = function(event, element)
+{
+    const $item        = $(element);
+    const $nav         = $('#navbar .nav');
+    const isMoving     = $nav.is('[z-use-sortable]');
+    const hideDisabled = !canHideCurrentNavbar($item);
+    const $li          = $item.closest('li');
+    const toAddedItems = generateAddNavbarItems($item, (name) => {
+        if(name === 'divider') return $li.after('<li class="nav-divider item divider"></li>');
+
+        const item = allNavbarItemMap.get(name);
+        const $a = $('<a></a>')
+            .attr('href', item.url)
+            .attr('target', item.target)
+            .attr('data-id', item['data-id'])
+            .append(`<span class="text">${item.text}</span>`);
+        if(item.class) $a.attr('class', item.class);
+        const $navItem = $('<li class="nav-item item"></li>');
+        $navItem.append($a);
+        $li.after($navItem);
+        saveNavbarToServer();
+    });
+    const items = [
+        isMoving
+            ? {
+                text: langData.save,
+                onClick: () => {
+                    $item.closest('.nav').zui().destroy();
+                    saveNavbarToServer();
+                }
+            }
+            : {
+                text: langData.sort,
+                onClick: () => {
+                    const sortable = new zui.Sortable(
+                        '#navbar .nav',
+                        {
+                            animation: 150,
+                            ghostClass: 'bg-primary-pale',
+                            onSort: () => {
+                                saveNavbarToServer();
+                            }
+                        }
+                    );
+                }
+            },
+        {
+            text: langData.hide,
+            disabled: hideDisabled,
+            onClick: hideDisabled
+                ? null
+                : () => {
+                    $li.hasClass('nav-divider') ? $li.remove() : $li.hide().attr('data-hidden', '1');
+                    saveNavbarToServer();
+                }
+        },
+        toAddedItems.length === 0
+            ? {
+                text: langData.add,
+                disabled: true,
+            }
+            : {
+                text: langData.add,
+                items: toAddedItems,
+            },
+        {
+            text: langData.restore,
+            onClick: () => {
+                restoreNavbarToServer({
+                    onSuccess() {
+                        loadCurrentPage('#navbar>*');
+                    }
+                });
+            }
+        }
+    ];
+    if(window.customNavbarContextMenu) window.customNavbarContextMenu.hide();
+    window.customNavbarContextMenu = zui.ContextMenu.show(
+        {
+            element: $item[0],
+            placement: 'bottom-start',
+            items: items,
+            event: event,
+            onClickItem: (info) => info.event.preventDefault(),
+            onHide: () => window.customNavbarContextMenu = null,
+            $optionsFromDataset: false,
+        }
+    );
+    event.preventDefault();
+}
+
+window.initPageNavbar = function(navbarItems, workspace, activeMenu, spaceTag, menuOrders)
+{
+    allNavbarItemNames.length = 0;
+    allNavbarItemMap.clear();
+
+    if(Array.isArray(menuOrders) && menuOrders.length)
+    {
+        const orderMap = new Map();
+        for(const item of menuOrders) orderMap.set(item.name, item.order);
+        if(!orderMap.has('more')) orderMap.set('more', 99999);
+        let lastItem = null;
+        navbarItems.forEach((item, index) => {
+            item.order = orderMap.get(item.name || item.code || item['data-id']) || (lastItem ? lastItem.order + 1 : 0);
+            lastItem = item;
+        });
+        navbarItems.sort((a, b) => a.order - b.order);
+    }
+
+    for(const item of navbarItems)
+    {
+        if(item.type === 'divider')
+        {
+            allNavbarItemNames.push('divider');
+            continue;
+        }
+
+        const name = item['data-id'] || item.id;
+
+        allNavbarItemNames.push(name);
+        allNavbarItemMap.set(name, item);
+    }
+
+    updateWorkspaceUI(workspace ? {type: workspace, active: activeMenu, items: navbarItems, itemMap: allNavbarItemMap, saveToServer: saveNavbarToServer} : null);
+};}());
+;(function(){/**
+ * @type {string[]}
+ */
+const allMainNavbarItemNames = [];
+
+/**
+ * @type {Map<string, any>}
+ */
+const allMainNavbarItemMap = new Map();
+
+window.initPageMainNavbar = function(items)
+{
+    if(!items) return;
+    allMainNavbarItemNames.length = 0;
+    allMainNavbarItemMap.clear();
+
+    for(const item of items)
+    {
+        allMainNavbarItemNames.push(item['data-id']);
+        allMainNavbarItemMap.set(item['data-id'], item);
+    }
+};
+
+/**
+ * Get current main navbar items data.
+ *
+ * @returns {Array<{name: string; order: number;}>}
+ */
+function getCurrentMainNavbarItems()
+{
+    const items = [];
+    const $nav = $('#mainNavbar .nav');
+    $nav.children().each(
+        function(index, element)
+        {
+            const $elm = $(element);
+            $a = $elm.find('a');
+
+            const menuItem = {};
+            menuItem.name  = $a.attr('data-id'),
+            menuItem.order = index * 5;
+            if(typeof $elm.data('hidden') != 'undefined') menuItem.hidden = true;
+
+            items.push(menuItem);
+        }
+    );
+    return items;
+}
+
+/**
+ * Generate main menu nav items to be added.
+ *
+ * @param {Cash} $item
+ * @param {(name: string) => void} onClick
+ * @returns {Array<{text: string; onClick: () => void;}>}
+ */
+function generateAddMainNavbarItems($item, onClick)
+{
+    const items = [];
+    const allMainNavbarItemIDSet = new Set(allMainNavbarItemMap.keys());
+    const curMainNavbarItems = getCurrentMainNavbarItems();
+    for(const {name} of curMainNavbarItems)
+    {
+        allMainNavbarItemIDSet.delete(name);
+    }
+
+    if(allMainNavbarItemIDSet.size === 0) return items;
+    for(const name of allMainNavbarItemIDSet)
+    {
+        const item = allMainNavbarItemMap.get(name);
+        items.push(
+            {
+                text: item.text,
+                onClick: () => {
+                    onClick(name),
+                    saveMainNavbarToServer($item, {onSuccess: () => loadCurrentPage('#mainNavbar')});
+                }
+            }
+        );
+    }
+    return items;
+}
+
+/**
+ * Checks whether the current navbar item can be hidden.
+ *
+ * @param {Cash} $item
+ * @returns {boolean}
+ */
+function canHideCurrentNavbar($item)
+{
+    if($item.is('.active')) return false;
+
+    const $navbarActiveItem = $('#navbar .nav .active');
+    if($item.attr('href').includes($navbarActiveItem.attr('href'))) return false;
+
+    return true;
+}
+
+window.handleMainNavbarContextmenu = function(event, element)
+{
+    const $item        = $(element);
+    const $nav         = $('#mainNavbar .nav');
+    const isMoving     = $nav.is('[z-use-sortable]');
+    const hideDisabled = !canHideCurrentNavbar($item);
+    const $li          = $item.closest('li');
+    const itemsToAdded = generateAddMainNavbarItems($item, (name) => {
+        const item = allMainNavbarItemMap.get(name);
+        const $a = $('<a></a>')
+            .attr('href', item.url)
+            .attr('data-id', item['data-id'])
+            .attr('data-app', item['data-app'])
+            .append(`<span class="text">${item.text}</span>`);
+        if(item.badge)
+        {
+            $a.append(`<span class="${item.badge.class}">${item.badge.text}</span>`);
+        }
+        const $navItem = $('<li class="nav-item item"></li>');
+        $navItem.append($a);
+        $li.after($navItem);
+    });
+    const items = [
+        isMoving
+            ? {
+                text: langData.save,
+                onClick: () => {
+                    $item.closest('.nav').zui().destroy();
+                    saveMainNavbarToServer($item);
+                }
+            }
+            : {
+                text: langData.sort,
+                onClick: () => {
+                    const sortable = new zui.Sortable(
+                        '#mainNavbar .nav',
+                        {
+                            animation: 150,
+                            ghostClass: 'bg-primary-pale',
+                            onSort: () => {
+                                saveMainNavbarToServer($item);
+                            }
+                        }
+                    );
+                }
+            },
+        {
+            text: langData.hide,
+            disabled: hideDisabled,
+            onClick: hideDisabled
+                ? null
+                : () => {
+                    $li.hide().attr('data-hidden', '1');
+                    saveMainNavbarToServer($item);
+                }
+        },
+        itemsToAdded.length === 0
+            ? {
+                text: langData.add,
+                disabled: true,
+            }
+            : {
+                text: langData.add,
+                items: itemsToAdded,
+            },
+        {
+            text: langData.restore,
+            onClick: () => {
+                restoreMainNavbarToServer($item, {
+                    onSuccess() {
+                        loadCurrentPage('#mainNavbar');
+                    }
+                });
+            }
+        }
+
+    ];
+
+    if(window.customNavbarContextMenu) window.customNavbarContextMenu.hide();
+    window.customNavbarContextMenu = zui.ContextMenu.show(
+        {
+            element: $item[0],
+            placement: 'bottom-start',
+            items: items,
+            event: event,
+            onClickItem: (info) => info.event.preventDefault(),
+            onHide: () => window.customNavbarContextMenu = null,
+            $optionsFromDataset: false,
+        }
+    );
+    event.preventDefault();
+}
+
+function saveMainNavbarToServer($item, options = {})
+{
+    const items     = getCurrentMainNavbarItems();
+    const menu      = $item.data('group');
+    const url       = $.createLink('custom', 'ajaxSetMenu');
+    $.ajaxSubmit({url, data: {menu, items: JSON.stringify(items)}, ...options});
+}
+
+function restoreMainNavbarToServer($item, options = {})
+{
+    const url  = $.createLink('custom', 'ajaxRestoreMenu');
+    const menu = $item.data('group');
+    $.ajaxSubmit({url, data: {menu}, ...options});
+};}());
+const browseType = "doing";
+const param = "";
+const recTotal = 0;
+const recPerPage = 15;
+const pageID = 1;
+const confirmDeleteTip = "您确定删除项目“%s”吗？";
+const langManDay = "人天";
+const delayWarning = "延期%s天";
+const isHomeMenu = false;
+const langData = {"open":"打开","reload":"刷新","close":"关闭","sort":"排序","save":"退出排序","hide":"隐藏","add":"添加","divider":"分割线","restore":"恢复默认"};
+const DAY_MILLISECONDS = 24 * 60 * 60 * 1000;
+
+const ignoreTips = {
+    budgetTip: false,
+    dateTip: false
+}
+
+/**
+ * 处理项目类型改变的交互。
+ * Handle project type change style.
+ *
+ * @param  string $type
+ * @access public
+ * @return void
+ */
+function changeType()
+{
+    const hasProduct = $(this).val();
+    if(hasProduct == 0)
+    {
+        if(!$('[name=charter]').length || ($('[name=charter]').length && !parseInt($('[name=charter]').val()))) $('.productsBox').addClass('hidden');
+        $('.stageByBox').addClass('hidden');
+    }
+    else
+    {
+        $('.productsBox').removeClass('hidden');
+        toggleStageBy();
+    }
+}
+
+/**
+ * 处理阶段类型改变的交互。
+ * Handle stage by change style.
+ *
+ * @param  string $type
+ * @access public
+ * @return void
+ */
+function changeStageBy(type)
+{
+    if($('.project-stageBy-' + type).hasClass('disabled')) return;
+    $('.project-stageBy-project, .project-stageBy-product').removeClass('primary-pale');
+    $('.project-stageBy-' + type).addClass('primary-pale');
+    $('input[name=stageBy]').val(type);
+}
+
+/**
+ * 计算两个日期之间可用的工作日。
+ * Compute work days between two dates.
+ *
+ * @param  string date1
+ * @param  string date2
+ * @access public
+ * @return int
+ */
+function computeDaysDelta(date1, date2)
+{
+    date1 = new Date(date1);
+    date2 = new Date(date2);
+    const time = date2 - date1;
+    const days = parseInt(time / DAY_MILLISECONDS) + 1;
+    if(isNaN(days)) return;
+
+    let weekendDays = 0;
+    for(i = 0; i < days; i++)
+    {
+        if((weekend == 2 && date1.getDay() == 6) || date1.getDay() == 0) weekendDays ++;
+        date1 = date1.valueOf() + DAY_MILLISECONDS;
+        date1 = new Date(date1);
+    }
+    return days - weekendDays;
+}
+
+/**
+ * 更新可用工作日天数。
+ * Update work days.
+ *
+ * @access public
+ * @return void
+ */
+window.computeWorkDays = function()
+{
+    const begin = $('input[name=begin]').val();
+    const end   = $('input[name=end]').val();
+
+    $('[name=days]').val(computeDaysDelta(begin, end)).trigger('change');
+
+    checkProjectInfo();
+}
+
+/**
+ * 计算并设置计划完成时间。
+ * Compute the end date for project.
+ *
+ * @access public
+ * @return void
+ */
+function computeEndDate()
+{
+    const beginDate = $('#begin').zui('datePicker').$.value;
+    if(!beginDate) return;
+
+    const delta = parseInt($('input[name=delta]:checked').val());
+    if(isNaN(delta)) return;
+
+    const isLongTime = delta == 999;
+    const endDate    = isLongTime ? '' : formatDate(beginDate, delta - 1);
+    const $endPicker = $('[name=end]').zui('datePicker');
+    $endPicker.render({disabled: isLongTime});
+    $endPicker.$.setValue(endDate);
+}
+
+/**
+ * 给指定日期加上具体天数，并返回格式化后的日期.
+ * Add days to date, and return formatted date.
+ *
+ * @param  string dateString
+ * @param  int    days
+ * @access public
+ * @return string
+ */
+function formatDate(dateString, days)
+{
+    const date = new Date(dateString);
+    date.setDate(date.getDate() + days);
+
+    return date.toLocaleDateString('en-CA')
+}
+
+/**
+ * Access rights are equal to private, and the white list settings are displayed.
+ *
+ * @param  string acl
+ * @access public
+ * @return void
+ */
+function setWhite()
+{
+    const acl = $("input[name='acl']:checked").val();
+    acl != 'open' ? $('select[name^=whitelist]').closest('.form-row').removeClass('hidden') : $('select[name^=whitelist]').closest('.form-row').addClass('hidden');
+}
+
+$(document).on('change', "input[name='acl']", setWhite);
+
+/**
+ * If future is checked, disable budget input.
+ *
+ * @param  object e
+ * @access public
+ * @return void
+ */
+window.toggleBudget = function(e)
+{
+    const future = e.target;
+    if($(future).prop('checked'))
+    {
+        $('[name=budget]').val('').addClass('disabled pointer-events-none');
+        $('#budgetUnit-toggle').addClass('disabled pointer-events-none');
+    }
+    else
+    {
+        $('[name=budget]').removeAttr('disabled');
+        $('[name=budget]').removeClass('disabled').removeClass('pointer-events-none');
+        $('#budgetUnit-toggle').removeClass('disabled').removeClass('pointer-events-none');
+    }
+}
+
+window.toggleBudgetUnit = function(unit)
+{
+    $('[data-name="budget"] > .has-prefix > .input-control-prefix > a').text(currencySymbol[unit]);
+    $('[name="budgetUnit"]').val(unit);
+};
+
+/**
+ * If change multiple, set delta.
+ *
+ * @param  object e
+ * @access public
+ * @return void
+ */
+window.toggleMultiple = function(e)
+{
+    const multiple = e.target;
+    $('#delta_999').closest('.radio-primary').toggle($(multiple).val() != 0);
+    if($('#delta_999').prop('checked') && $(multiple).val() == 0)
+    {
+        $('#delta_999').prop('checked', false);
+        $('#end').removeAttr('disabled').val('');
+        $('#days').closest('.form-row').removeClass('hidden');
+    }
+}
+
+/**
+ * 检查项目预算是否超出父项目集剩余预算。
+ * Check if the project budget exceeds the remaining budget of the parent program.
+ *
+ * @access public
+ * @return void
+ */
+function checkBudget()
+{
+    if(ignoreTips['budgetTip']) return;
+
+    $('#budgetTip').addClass('hidden');
+    checkProjectInfo();
+}
+
+window.checkProjectInfo = function()
+{
+    const programID = $('[name=parent]').val();
+    if(programID == 0 && !$('#copyProjectModal').length)
+    {
+        $('[name=budget]').removeAttr('placeholder');
+        $('#dateTip').addClass('hidden');
+        $('#budgetTip').addClass('hidden');
+        $('#budgetTip').addClass('text-danger');
+        $('#budgetTip').removeClass('text-warning');
+        $('#budgetTip').html('');
+        return false;
+    }
+
+    if(typeof(currentProject) == 'undefined') currentProject = 0;
+
+    $.getJSON($.createLink('project', 'ajaxGetProjectFormInfo', 'objectType=project&objectID=' + currentProject + "&selectedProgramID=" + programID), function(data)
+    {
+        let dateTip = '';
+        let projectEnd = $('[name=longTime]').prop('checked') ? LONG_TIME : $('[name=end]').val();
+        if(typeof(data.selectedProgramBegin) != 'undefined' && $('[name=begin]').val() != '' && $('[name=begin]').val() < data.selectedProgramBegin) dateTip += beginLessThanParent.replace('%s', data.selectedProgramBegin);
+        if(typeof(data.selectedProgramEnd) != 'undefined' && projectEnd != '' && projectEnd > data.selectedProgramEnd) dateTip += endGreatThanParent.replace('%s', data.selectedProgramEnd);
+        if(dateTip != '')
+        {
+            $('#dateTip').html(dateTip);
+            $('#dateTip').append($('<span id="ignoreDate" class="underline">' + ignore + '</span>'));
+            $('#dateTip').removeClass('hidden');
+            $('#dateTip').off('click', '#ignoreDate').on('click', '#ignoreDate', function(){ignoreTip('dateTip')});
+        }
+
+        if(typeof(data.availableBudget) != 'undefined')
+        {
+            const budget          = $('[name=budget]').val();
+            const currency        = currencySymbol[data.budgetUnit];
+            const availableBudget = data.availableBudget.toFixed(2);
+            $('[name=budget]').attr('placeholder', parentBudget + currency + availableBudget);
+            if(budget != 0 && budget !== null && budget > data.availableBudget)
+            {
+                $('#budgetTip').html(budgetOverrun.replace('%s', currency + availableBudget));
+                $('#budgetTip').append($('<span id="ignoreBudget" class="underline">' + ignore + '</span>'));
+                $('#budgetTip').removeClass('hidden');
+                $('#budgetTip').removeClass('text-danger');
+                $('#budgetTip').addClass('text-warning');
+                $('#budgetTip').off('click', '#ignoreBudget').on('click', '#ignoreBudget', function(){ignoreTip('budgetTip')});
+            }
+        }
+    });
+}
+
+/**
+ * The date is out of the range of the parent project set, and a prompt is given.
+ *
+ * @access public
+ * @return void
+ */
+function checkDate()
+{
+    if(ignoreTips['dateTip']) return;
+
+    const begin = $('#begin').zui('datePicker').$.value;
+    const end   = $('#end').zui('datePicker').$.value;
+    if(!begin || !end) return;
+
+    const selectedProgramID = $('[name=parent]').val();
+    if(selectedProgramID == 0 || selectedProgramID == undefined)
+    {
+        $('#dateTip, #beginLess, #endGreater').addClass('hidden');
+        return;
+    }
+
+    if(typeof(currentProject) == 'undefined') currentProject = 0;
+    $.get($.createLink('project', 'ajaxGetProjectFormInfo', 'objectType=project&objectID=' + currentProject + '&selectedProgramID=' + selectedProgramID), function(response)
+    {
+        const data         = JSON.parse(response);
+        const parentEnd    = new Date(data.selectedProgramEnd);
+        const parentBegin  = new Date(data.selectedProgramBegin);
+        const projectEnd   = new Date(end);
+        const projectBegin = new Date(begin);
+
+        if(projectBegin >= parentBegin && projectEnd <= parentEnd)
+        {
+            $('#dateTip, #beginLess, #endGreater').addClass('hidden');
+            return;
+        }
+
+        $('#dateTip').removeClass('hidden').find('#beginLess').toggleClass('hidden', projectBegin >= parentBegin).find('.parentBegin').text(data.selectedProgramBegin);
+        $('#dateTip').removeClass('hidden').find('#endGreater').toggleClass('hidden', projectEnd <= parentEnd).find('.parentEnd').text(data.selectedProgramEnd);
+    });
+}
+
+/**
+ * 忽略提示信息。
+ * Ignore tips.
+ *
+ * @param  string $tip
+ * @access public
+ * @return void
+ */
+function ignoreTip(tip)
+{
+    $('#' + tip).remove();
+    ignoreTips[tip] = true;
+}
+
+function toggleStageBy()
+{
+    let chosenProducts = 0;
+    $(".productsBox [name^='products']").each(function()
+    {
+        if($(this).val() > 0) chosenProducts ++;
+    });
+
+    if(chosenProducts > 1)  $('.stageByBox').removeClass('hidden');
+    if(chosenProducts <= 1)
+    {
+        $('.stageByBox').addClass('hidden');
+        $('input[name=stageBy][value=project]').prop('checked', true);
+    }
+}
+
+window.getDateMenu = function()
+{
+    if(!endList) return [];
+
+    const begin = $('input[name=begin]').val();
+    if(!begin) return [];
+
+    let endMenu     = [];
+    const beginDate = new Date(begin);
+    for(let key in endList)
+    {
+        endMenu.push({'text': endList[key], 'data-set-date': zui.formatDate(new Date(beginDate.getTime() + 1000 * 60 * 60 * 24 * parseInt(key)), 'yyyy-MM-dd')});
+    }
+    return endMenu;
+}
+
+/**
+ * 提示并删除执行。
+ * Delete execution with tips.
+ *
+ * @param  int    executionID
+ * @param  string executionName
+ * @access public
+ * @return void
+ */
+window.confirmDeleteExecution = function(executionID, confirmDeleteTip)
+{
+    zui.Modal.confirm({message: confirmDeleteTip, icon:'icon-exclamation-sign', iconClass: 'warning-pale rounded-full icon-2x'}).then((res) =>
+    {
+        if(res) $.ajaxSubmit({url: $.createLink('execution', 'delete', 'executionID=' + executionID + '&comfirm=yes')});
+    });
+}
+window.programMenuOnClick = function(data, url)
+{
+    location.href = url.replace('%d', data.item.key);
+}
+
+window.renderCell = function(result, {col, row})
+{
+    if(col.name === 'name')
+    {
+        if(row.data.delay > 0)
+        {
+            result[0].props.className = 'overflow-hidden';
+            result[result.length] = {html:'<span class="label danger-pale ml-1 flex-none nowrap">' + delayWarning.replace('%s', row.data.delay) + '</span>', className:'flex items-end', style:{flexDirection:"column"}};
+        }
+        return result;
+    }
+
+    if(col.name === 'invested')
+    {
+        result[result.length] = {html:'<span class="text-gray text-xs">' + langManDay + '</span>'};
+        return result;
+    }
+
+    return result;
+}
+
+window.handleBatchBtnClick = function(event)
+{
+    const $this = $(event.target).closest('a,.btn');
+    const dtable = zui.DTable.query($this);
+    const checkedList = dtable.$.getChecks();
+    if(!checkedList.length) return;
+
+    const form = new FormData();
+    const url  = $this.data('url');
+    checkedList.forEach((id) => form.append('projectIdList[]', id));
+    postAndLoadPage(url, form);
+};
+
+window.handleClickExportBtn = function(event)
+{
+    const dtable = zui.DTable.query($('#table-project-browse'));
+    const checkedList = dtable ? dtable.$.getChecks() : [];
+    if(!checkedList.length) return;
+
+    $.cookie.set('checkedItem', checkedList, {expires:config.cookieLife, path:config.webRoot});
+};
+
+window.handleClickSwitchButton = function(event)
+{
+    const $this = $(event.target).closest('a,.btn');
+    const projectType = $this.attr('data-type');
+    $.cookie.set('projectType', projectType, {expires:config.cookieLife, path:config.webRoot});
+    loadCurrentPage();
+};
+
+window.handleChangeInvolved = function(event)
+{
+    const involved = $(event.target).is(':checked') ? 1 : 0;
+    $.cookie.set('involved', involved, {expires:config.cookieLife, path:config.webRoot});
+    loadTable();
+};
+
+/**
+ * 提示并删除项目。
+ * Delete project with tips.
+ *
+ * @param  int    projectID
+ * @param  string projectName
+ * @access public
+ * @return void
+ */
+window.confirmDelete = function(projectID, projectName)
+{
+    zui.Modal.confirm({message: confirmDeleteTip.replace('%s', projectName), icon:'icon-exclamation-sign', iconClass: 'warning-pale rounded-full icon-2x'}).then((res) =>
+    {
+        if(res) $.ajaxSubmit({url: $.createLink('project', 'delete', 'projectID=' + projectID)});
+    });
+};
+
+window.changeProgram = function()
+{
+    const programID = $('input[name=programID]').val();
+    const link      = $.createLink('project', 'browse', 'programID=' + programID + '&browseType=' + browseType + '&param=' + param + '&orderBy=order_asc&recTotal=' + recTotal + '&recPerPage=' + recPerPage + '&pageID=' + pageID);
+    loadPage(link);
+}
+}());</script></body></html>

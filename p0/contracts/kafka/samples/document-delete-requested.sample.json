@@ -1,0 +1,16 @@
+{
+  "eventId": "e5d4c3b2-a190-4876-9543-210fedcba987",
+  "eventType": "DOCUMENT_DELETE_REQUESTED",
+  "schemaVersion": 1,
+  "occurredAt": "2026-10-31T03:02:11.004Z",
+  "tenantId": "5b7e9d21-1c3f-4a80-b6d2-0f1e2d3c4b5a",
+  "workspaceId": "8a1b2c3d-4e5f-4061-8293-a4b5c6d7e8f9",
+  "kbId": "c9d8e7f6-5a4b-4321-9876-5f4e3d2c1b0a",
+  "documentId": "1a2b3c4d-5e6f-4708-9a1b-c2d3e4f50617",
+  "documentVersion": 1,
+  "operationId": "2b1a0c9d-8e7f-4654-a321-1234567890ab",
+  "correlationId": "0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0",
+  "actorId": "d1c2b3a4-9f8e-4765-b432-1a2b3c4d5e6f",
+  "purge": false,
+  "reason": "用户删除，原件进入保留期"
+}

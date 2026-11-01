@@ -1,0 +1,1198 @@
+openapi: 3.0.3
+info:
+  title: 本地知识库 pilot API（P1 附录 B + P2 Wiki 治理）
+  version: 1.2.0
+  description: |
+    pilot 侧（`com.acme.kb.p1`）HTTP 契约的唯一事实源。P0 的 `p0/contracts/openapi.yaml` 保留为
+    验证期历史证据（含 fixture/verification 端点，明确禁止进 pilot 镜像），本文件**不与它合并**。
+
+    裁定与范围（2026-11-01，见 `p0/decisions/ADR-010-P2契约事实源迁到p1-contracts.md`）：
+    - 只声明门户**真实提供**的操作；`x-error-codes` 里出现的码必须在 `ApiError.code` 枚举内，
+      枚举里每个码也必须被至少一个操作声明（`CROSS_TENANT_ACCESS` 例外：只写审计不作响应）。
+      由 `p1/scripts/24-check-contracts-p1.py` 与 `p1/portal` 的 `@*Mapping` 双向核对，缺边即 ERROR。
+    - 全部为**加法**：不改 P0/P1 既有路径的语义。
+    - 统一约束：响应带 `X-Trace-Id`；错误结构统一 `ApiError`；列表一律 `limit ≤ 100` + 游标；
+      跨租户命中一律降级 404；正文、Prompt、对象键、凭据绝不出现在响应里。
+    - 认证：同源会话 Cookie（OIDC 登录后由服务端签发）+ CSRF（Cookie-to-header）。
+      dev subject 头只在 `KB_DEV_SUBJECT_ENABLED=true` 时被接受，不进试点。
+
+    未声明的目标契约（实现未达成，按 §1.3.1 属 P2-W3/W4，不得据此编码）：
+    `GET /api/v1/workspaces/{workspaceId}/governance/summary`、
+    `GET /api/v1/correction-cases`、`POST /api/v1/correction-cases/{caseId}/assign`、
+    `POST /api/v1/correction-cases/{caseId}/close`、`GET /api/v1/notifications`、
+    `POST /api/v1/notifications/{notificationId}/read`，
+    以及 P1 附录 B 里门户尚未实现的 7 条列表/成员类路径（登记在 `p0/decisions/P1-backlog.md`）。
+
+    与 `outputs/P2技术实现文档-本地知识库.md` §7 的对账：该表按 `A / B` 合写展开是 **21 个操作**，
+    其中上列 6 个（治理汇总、纠错工单 3 条、站内通知 2 条）本轮未声明 → 应声明的 **15 个全部在 `paths:` 里**；
+    另有 1 条**加法**：`GET /api/v1/wiki-pages/{pageId}/revisions`（修订列表只回摘要与摘要哈希，
+    供差异选择器使用，避免前端逐条拉正文）。合计 16 条 Wiki 操作。
+servers:
+  - url: https://kb.example.internal:8443
+    description: 试点网关（TLS 终止、SSE 直通、限速）
+  - url: http://127.0.0.1:18181
+    description: api 容器回环（仅内网调试，会话 Cookie 因 Secure 属性不可用）
+
+security:
+  - sessionCookie: []
+
+tags:
+  - name: identity
+  - name: document
+  - name: chat
+  - name: wiki
+  - name: ops
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [ops]
+      operationId: health
+      security: []
+      summary: 存活探针（无需会话）
+      x-error-codes: [INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 进程存活
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: UP }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/auth/login:
+    get:
+      tags: [identity]
+      operationId: loginRedirect
+      security: []
+      summary: 302 跳到 OIDC 授权端点（dev subject 模式下返回 204，该模式不进试点）
+      x-error-codes: [INTERNAL_ERROR]
+      responses:
+        '302': { description: 跳转到 IdP }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [identity]
+      operationId: logout
+      security: []
+      summary: 先写审计再失效会话；审计写失败则保持会话（fail-close）
+      x-error-codes: [CSRF_INVALID, UNAUTHENTICATED, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      responses:
+        '204': { description: 已登出 }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/AuditWriteFailed' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/auth/me:
+    get:
+      tags: [identity]
+      operationId: whoami
+      security: []
+      summary: 当前主体（租户、用户、密级、空间与知识库）
+      x-error-codes: [UNAUTHENTICATED, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 主体视图
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Principal' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /api/v1/workspaces/{workspaceId}/knowledge-bases/{kbId}/documents:
+    parameters:
+      - { $ref: '#/components/parameters/WorkspaceId' }
+      - { $ref: '#/components/parameters/KbId' }
+    post:
+      tags: [document]
+      operationId: uploadDocument
+      summary: multipart 上传原件，事务内写 document + ingest_task + outbox
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, CLEARANCE_TOO_LOW, RESOURCE_NOT_FOUND, DOCUMENT_FORMAT_UNSUPPORTED, DOCUMENT_SIGNATURE_MISMATCH, DOCUMENT_TOO_LARGE, IDEMPOTENCY_CONFLICT, CONCURRENCY_LIMITED, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                displayName: { type: string, maxLength: 200 }
+                classification: { type: string, enum: [PUBLIC, INTERNAL, SECRET] }
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '202':
+          description: 已受理（重复键返回既有资源并标 duplicate）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadAccepted' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/documents/{documentId}:
+    parameters:
+      - { $ref: '#/components/parameters/DocumentId' }
+    get:
+      tags: [document]
+      operationId: getDocument
+      summary: 文档详情（含最新任务视图）
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 文档
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentView' }
+        default: { $ref: '#/components/responses/ApiError' }
+    delete:
+      tags: [document]
+      operationId: deleteDocument
+      summary: 发起删除 Saga（失败进 COMPENSATION_REQUIRED，绝不回 READY）
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INVALID_STATE_TRANSITION, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: 当前状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentView' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/documents/{documentId}/content:
+    parameters:
+      - { $ref: '#/components/parameters/DocumentId' }
+    get:
+      tags: [document]
+      operationId: getDocumentContent
+      summary: 原件字节流（经服务端授权代理，不暴露对象键）
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, STORAGE_UNAVAILABLE, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 原件
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/documents/{documentId}/retry:
+    parameters:
+      - { $ref: '#/components/parameters/DocumentId' }
+    post:
+      tags: [document]
+      operationId: retryDocument
+      summary: 人工重放（仅暂时性失败的 FAILED 可重放）
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, TASK_NOT_RETRYABLE, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '202':
+          description: 新任务
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskView' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/tasks/{taskId}:
+    parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [document]
+      operationId: getTask
+      summary: 任务状态与退避水位
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 任务
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskView' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/knowledge-bases/{kbId}/chat:
+    parameters:
+      - { $ref: '#/components/parameters/KbId' }
+    post:
+      tags: [chat]
+      operationId: chat
+      summary: 问答（拒答即零引用）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, CLEARANCE_TOO_LOW, RESOURCE_NOT_FOUND, CHAT_NO_EVIDENCE, RATE_LIMITED, CONCURRENCY_LIMITED, ENGINE_TIMEOUT, ENGINE_UNAVAILABLE, ENGINE_INDEX_FAILED, MODEL_UNAVAILABLE, CSRF_INVALID, AUDIT_WRITE_FAILED, CONVERSATION_NOT_FOUND, INTERNAL_ERROR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '200':
+          description: 回答与引用（`ANSWERED` 才有 citations）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatResponse' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/knowledge-bases/{kbId}/chat/stream:
+    parameters:
+      - { $ref: '#/components/parameters/KbId' }
+    post:
+      tags: [chat]
+      operationId: chatStream
+      summary: SSE 流式问答（网关直通，不缓冲）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, CLEARANCE_TOO_LOW, RESOURCE_NOT_FOUND, CHAT_NO_EVIDENCE, RATE_LIMITED, CONCURRENCY_LIMITED, ENGINE_TIMEOUT, ENGINE_UNAVAILABLE, MODEL_UNAVAILABLE, CSRF_INVALID, AUDIT_WRITE_FAILED, CONVERSATION_NOT_FOUND, INTERNAL_ERROR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '200':
+          description: 事件流（`delta`/`done`/`error`）
+          content:
+            text/event-stream:
+              schema: { type: string }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/chat/completions/{requestId}/cancel:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [chat]
+      operationId: cancelChat
+      summary: 取消进行中的请求（释放模型信号量）
+      x-error-codes: [UNAUTHENTICATED, RESOURCE_NOT_FOUND, CSRF_INVALID, INTERNAL_ERROR]
+      responses:
+        '204': { description: 已取消或已结束（幂等） }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/citations/{citationId}/preview:
+    parameters:
+      - name: citationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [chat]
+      operationId: citationPreview
+      summary: 引用预览（每次读取重新过 ACL，不返回缓存正文）
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, STORAGE_UNAVAILABLE, ENGINE_UNAVAILABLE, INVALID_STATE_TRANSITION, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 片段文本
+          content:
+            text/plain:
+              schema: { type: string }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/conversations:
+    get:
+      tags: [chat]
+      operationId: listConversations
+      summary: 本人会话列表
+      x-error-codes: [UNAUTHENTICATED, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 会话
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConversationView' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/conversations/{conversationId}/messages:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [chat]
+      operationId: listConversationMessages
+      summary: 会话消息与引用
+      x-error-codes: [UNAUTHENTICATED, CONVERSATION_NOT_FOUND, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 消息
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MessageView' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/messages/{messageId}/feedback:
+    parameters:
+      - name: messageId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [chat]
+      operationId: messageFeedback
+      summary: 答案纠错反馈（comment 只入库，不进日志与报告）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, RESOURCE_NOT_FOUND, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeedbackRequest' }
+      responses:
+        '204': { description: 已记录 }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/knowledge-bases/{kbId}/wiki-pages:
+    parameters:
+      - { $ref: '#/components/parameters/KbId' }
+    get:
+      tags: [wiki]
+      operationId: listWikiPages
+      summary: 页面列表（按 status/freshness/owner 筛选）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INTERNAL_ERROR]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/WikiPageStatus' }
+        - name: freshness
+          in: query
+          schema: { $ref: '#/components/schemas/WikiFreshness' }
+        - name: owner
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 分页列表（无正文）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPageList' }
+        default: { $ref: '#/components/responses/ApiError' }
+    post:
+      tags: [wiki]
+      operationId: createWikiPage
+      summary: 建页 + 首个 revision（DRAFT）
+      x-error-codes: [VALIDATION_FAILED, WIKI_TITLE_INVALID, WIKI_BODY_TOO_LARGE, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WikiPageCreateRequest' }
+      responses:
+        '201':
+          description: 已创建
+          headers:
+            ETag: { schema: { type: string }, description: '"v{n}-{actorHash}-{revisionNo}"' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    get:
+      tags: [wiki]
+      operationId: getWikiPage
+      summary: 页面详情（正文 + 来源 + 治理位 + 服务端算好的 capability）
+      description: |
+        草稿正文只在 `wiki:read-draft` 且（作者本人 / 被指派审核人 / OWNER、ADMIN）时返回；
+        否则返回已发布修订并把 `capabilities` 里的草稿动作置为不可用，同时写 `WIKI_DRAFT_READ_DENY` 审计。
+        `RETRACTING/RETRACTED/ARCHIVED` 一律按已发布轴拒绝正文读取。
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INVALID_STATE_TRANSITION, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 页面
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/draft:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    put:
+      tags: [wiki]
+      operationId: saveWikiDraft
+      summary: 保存草稿（乐观锁，永不静默覆盖）
+      description: |
+        必须带 `If-Match: "<revision_no>"`。与 `current_revision_no` 不符 → 409 `WIKI_REVISION_LOST`，
+        响应只给当前 `revision_no` 与最新修订 `body_digest` 前 12 位，**不返回他人正文**（D-07）。
+        当前修订为 `DRAFT` 时原地更新；为 `APPROVED/SUPERSEDED/REJECTED` 时新建 `revision_no+1` 的 DRAFT。
+      x-error-codes: [VALIDATION_FAILED, WIKI_TITLE_INVALID, WIKI_BODY_TOO_LARGE, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, WIKI_REVISION_LOST, VERSION_CONFLICT, INVALID_STATE_TRANSITION, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - { $ref: '#/components/parameters/IfMatch' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WikiDraftRequest' }
+      responses:
+        '200':
+          description: 新草稿状态
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/sources:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    post:
+      tags: [wiki]
+      operationId: addWikiSource
+      summary: 给草稿修订追加来源（保存时校验可见性）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, WIKI_SOURCE_UNAVAILABLE, INVALID_STATE_TRANSITION, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WikiSourceRequest' }
+      responses:
+        '201':
+          description: 来源
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiSource' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/sources/{sourceId}:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [wiki]
+      operationId: removeWikiSource
+      summary: 删除草稿来源
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INVALID_STATE_TRANSITION, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      responses:
+        '204': { description: 已删除 }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/submit:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    post:
+      tags: [wiki]
+      operationId: submitWikiPage
+      summary: 提交审核（E1/R1）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, WIKI_SOURCE_UNAVAILABLE, WIKI_REVISION_LOST, VERSION_CONFLICT, INVALID_STATE_TRANSITION, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - { $ref: '#/components/parameters/IfMatch' }
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: 进入审核
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/workspaces/{workspaceId}/wiki-review-queue:
+    parameters:
+      - { $ref: '#/components/parameters/WorkspaceId' }
+    get:
+      tags: [wiki]
+      operationId: listWikiReviewQueue
+      summary: 待审队列（计数与摘要，无正文）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, WIKI_REVIEWER_NOT_ASSIGNED, RESOURCE_NOT_FOUND, INTERNAL_ERROR]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 队列
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/WikiReviewQueueItem' }
+                  nextCursor: { type: string, nullable: true }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-revisions/{revisionId}/approve:
+    parameters:
+      - { $ref: '#/components/parameters/RevisionId' }
+    post:
+      tags: [wiki]
+      operationId: approveWikiRevision
+      summary: 审核通过（E3/E4 + R2/R4）
+      description: |
+        服务端强制 `revision.author_user_id != actor`；通过即移动 `published_revision_id` 指针并写
+        `wiki_sync_task(operation=PUBLISH)`。同一 revision 重复 approve 幂等：不产生新修订、不重复写任务。
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, WIKI_REVIEW_SELF_APPROVAL, WIKI_REVIEWER_NOT_ASSIGNED, WIKI_SOURCE_UNAVAILABLE, INVALID_STATE_TRANSITION, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: 已发布（同步态另由 worker 推进）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-revisions/{revisionId}/reject:
+    parameters:
+      - { $ref: '#/components/parameters/RevisionId' }
+    post:
+      tags: [wiki]
+      operationId: rejectWikiRevision
+      summary: 退回草稿（E2/R3），必填 decision_note（只存摘要哈希）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, WIKI_REVIEWER_NOT_ASSIGNED, INVALID_STATE_TRANSITION, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decisionNote]
+              properties:
+                decisionNote: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: 已退回
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/retract:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    post:
+      tags: [wiki]
+      operationId: retractWikiPage
+      summary: 撤稿（E5）；失败只停在 RETRACTING
+      description: |
+        同事务写 `wiki_sync_task(operation=RETRACT)`。检索与引用预览自状态进入 `RETRACTING` 起一律拒绝，
+        不依赖引擎是否已删干净。`RETRACTING → RETRACTED`（E6）由 worker 在真引擎上确认，
+        属 P2-W2 且受准入 F-1 阻断，**本阶段不声称可达**。
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INVALID_STATE_TRANSITION, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: 撤稿中
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/archive:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    post:
+      tags: [wiki]
+      operationId: archiveWikiPage
+      summary: 归档（E7/E8）
+      description: |
+        只接受 `DRAFT` 与 `RETRACTED`。`PUBLISHED`/`RETRACTING` 直接归档会留下"引擎索引仍在而 MySQL 已隐藏"
+        的窗口，属越权可见性风险，因此 409 拒绝——见 `p1/contracts/state-machine-wiki.md` §3。
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INVALID_STATE_TRANSITION, IDEMPOTENCY_CONFLICT, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: 已归档
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/governance:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    patch:
+      tags: [wiki]
+      operationId: patchWikiGovernance
+      summary: 改负责人 / 有效期 / 复查日
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, VERSION_CONFLICT, WIKI_REVISION_LOST, CSRF_INVALID, AUDIT_WRITE_FAILED, INTERNAL_ERROR]
+      parameters:
+        - { $ref: '#/components/parameters/IfMatch' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WikiGovernanceRequest' }
+      responses:
+        '200':
+          description: 治理位更新
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiPage' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/revisions:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+    get:
+      tags: [wiki]
+      operationId: listWikiRevisions
+      summary: 修订历史（分页，只给摘要与 body_digest）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INTERNAL_ERROR]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 修订列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/WikiRevisionSummary' }
+                  nextCursor: { type: string, nullable: true }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/revisions/{revisionNo}:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+      - { $ref: '#/components/parameters/RevisionNo' }
+    get:
+      tags: [wiki]
+      operationId: getWikiRevision
+      summary: 指定修订（草稿修订受草稿可见性规则约束）
+      x-error-codes: [UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 修订
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiRevision' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+  /api/v1/wiki-pages/{pageId}/revisions/{fromRevisionNo}/diff/{toRevisionNo}:
+    parameters:
+      - { $ref: '#/components/parameters/PageId' }
+      - name: fromRevisionNo
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - name: toRevisionNo
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      tags: [wiki]
+      operationId: diffWikiRevisions
+      summary: 服务端行级差异（前端不自行算"真相"）
+      x-error-codes: [VALIDATION_FAILED, UNAUTHENTICATED, ACCESS_DENIED, RESOURCE_NOT_FOUND, INTERNAL_ERROR]
+      responses:
+        '200':
+          description: 差异（行级 added/removed/context，正文只在可见性通过时返回）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiDiff' }
+        default: { $ref: '#/components/responses/ApiError' }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: kb_session
+      description: 服务端会话 Cookie；试点为 `__Host-kb_session`，`HttpOnly` + `Secure`，必须经 8443
+
+  parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    KbId:
+      name: kbId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PageId:
+      name: pageId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RevisionId:
+      name: revisionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RevisionNo:
+      name: revisionNo
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: 强 ETag 或裸 `revision_no`；缺失 → 400
+      schema: { type: string, maxLength: 64 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string, maxLength: 128 }
+
+  responses:
+    Unauthenticated:
+      description: 未登录或会话失效
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    AuditWriteFailed:
+      description: 审计不可写 → 业务回滚（不返回内容）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    ApiError:
+      description: 统一错误结构
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+
+  schemas:
+    WikiPageStatus:
+      type: string
+      enum: [DRAFT, IN_REVIEW, PUBLISHED, RETRACTING, RETRACTED, ARCHIVED]
+    WikiFreshness:
+      type: string
+      enum: [FRESH, STALE, EXPIRED]
+    WikiRevisionStatus:
+      type: string
+      enum: [DRAFT, PENDING, APPROVED, REJECTED, SUPERSEDED]
+    WikiSyncStatus:
+      type: string
+      enum: [PENDING, CLAIMED, RUNNING, RETRY_SCHEDULED, SUCCEEDED, FAILED, COMPENSATION_REQUIRED, DEAD_LETTERED]
+    WikiCapability:
+      type: string
+      enum: [wiki:read, wiki:read-draft, wiki:write, wiki:submit, wiki:review, wiki:publish, wiki:retract, wiki:govern]
+
+    ApiError:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - UNAUTHENTICATED
+            - ACCESS_DENIED
+            - CROSS_TENANT_ACCESS
+            - CLEARANCE_TOO_LOW
+            - RESOURCE_NOT_FOUND
+            - IDEMPOTENCY_CONFLICT
+            - INVALID_STATE_TRANSITION
+            - TASK_NOT_RETRYABLE
+            - DOCUMENT_FORMAT_UNSUPPORTED
+            - DOCUMENT_SIGNATURE_MISMATCH
+            - CHAT_NO_EVIDENCE
+            - ENGINE_INDEX_FAILED
+            - ENGINE_UNAVAILABLE
+            - ENGINE_TIMEOUT
+            - STORAGE_UNAVAILABLE
+            - MODEL_UNAVAILABLE
+            - DOCUMENT_TOO_LARGE
+            - RATE_LIMITED
+            - CONCURRENCY_LIMITED
+            - CSRF_INVALID
+            - AUDIT_WRITE_FAILED
+            - VERSION_CONFLICT
+            - CONVERSATION_NOT_FOUND
+            - INTERNAL_ERROR
+            - WIKI_SOURCE_UNAVAILABLE
+            - WIKI_REVIEW_SELF_APPROVAL
+            - WIKI_REVIEWER_NOT_ASSIGNED
+            - WIKI_REVISION_LOST
+            - WIKI_TITLE_INVALID
+            - WIKI_BODY_TOO_LARGE
+        message:
+          type: string
+          description: 面向用户，不含对象键、Prompt、SQL、堆栈、凭据、对方租户标识
+        requestId: { type: string }
+        traceId: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            additionalProperties: { type: string }
+
+    Principal:
+      type: object
+      properties:
+        tenantCode: { type: string }
+        userCode: { type: string }
+        clearance: { type: string }
+        workspaces:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceView' }
+    WorkspaceView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [OWNER, ADMIN, CONTRIBUTOR, VIEWER] }
+        knowledgeBases:
+          type: array
+          items: { $ref: '#/components/schemas/KnowledgeBaseView' }
+    KnowledgeBaseView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        classification: { type: string }
+        aclVersion: { type: integer, format: int64 }
+        engineKbId: { type: string }
+        status: { type: string }
+
+    UploadAccepted:
+      type: object
+      properties:
+        documentId: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        operationId: { type: string, format: uuid }
+        status: { type: string }
+        duplicate: { type: boolean }
+        version: { type: integer }
+    DocumentView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        kbId: { type: string, format: uuid }
+        displayName: { type: string }
+        version: { type: integer }
+        status: { type: string }
+        sha256: { type: string, minLength: 64, maxLength: 64 }
+        sizeBytes: { type: integer, format: int64 }
+        mimeType: { type: string }
+        classification: { type: string }
+        engineDocId: { type: string }
+        latestTask: { $ref: '#/components/schemas/TaskView' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        errorCode: { type: string }
+        errorSummary: { type: string }
+    TaskView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        operationId: { type: string, format: uuid }
+        taskType: { type: string }
+        status: { type: string }
+        attempts: { type: integer }
+        maxAttempts: { type: integer }
+        nextRunAt: { type: string, format: date-time }
+        leaseUntil: { type: string, format: date-time }
+        errorCode: { type: string }
+        errorSummary: { type: string }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+
+    ChatRequest:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 2000 }
+        conversationId: { type: string, format: uuid, nullable: true }
+        knowledgeBaseIds:
+          type: array
+          items: { type: string, format: uuid }
+        topK: { type: integer, minimum: 1, maximum: 50 }
+        contextChunks: { type: integer, minimum: 1, maximum: 20 }
+    ChatResponse:
+      type: object
+      properties:
+        requestId: { type: string, format: uuid }
+        conversationId: { type: string, format: uuid }
+        messageId: { type: string, format: uuid }
+        status: { type: string, enum: [ANSWERED, NO_EVIDENCE, REFUSED] }
+        answer: { type: string }
+        citations:
+          type: array
+          items: { $ref: '#/components/schemas/CitationView' }
+        usage: { $ref: '#/components/schemas/Usage' }
+        latency: { $ref: '#/components/schemas/Latency' }
+        aclStats: { $ref: '#/components/schemas/AclStats' }
+        traceId: { type: string }
+    Usage:
+      type: object
+      properties:
+        promptTokens: { type: integer }
+        completionTokens: { type: integer }
+    Latency:
+      type: object
+      properties:
+        authorizationMs: { type: integer, format: int64 }
+        retrievalMs: { type: integer, format: int64 }
+        firstTokenMs: { type: integer, format: int64, nullable: true }
+        totalMs: { type: integer, format: int64 }
+    AclStats:
+      type: object
+      properties:
+        requestedKbCount: { type: integer }
+        authorizedKbCount: { type: integer }
+        engineCandidates: { type: integer }
+        droppedByAcl: { type: integer }
+        droppedByClearance: { type: integer }
+        droppedByStaleVersion: { type: integer }
+        droppedByUnsupportedCitation: { type: integer }
+        droppedByStaleWiki: { type: integer, description: P2：指针不匹配/非 PUBLISHED 的 Wiki 命中丢弃计数 }
+        promptChunks: { type: integer }
+        droppedScopes:
+          type: array
+          items: { type: string }
+    CitationView:
+      type: object
+      properties:
+        citationId: { type: string, format: uuid }
+        sourceType: { type: string, enum: [DOCUMENT, WIKI_PAGE], description: P2 增列，缺省 DOCUMENT }
+        documentId: { type: string, format: uuid }
+        documentVersion: { type: integer }
+        pageId: { type: string, format: uuid, description: sourceType=WIKI_PAGE 时非空 }
+        pageRevisionNo: { type: integer }
+        engineDocId: { type: string }
+        engineChunkId: { type: string }
+        title: { type: string }
+        page: { type: integer }
+        section: { type: string }
+        charStart: { type: integer }
+        charEnd: { type: integer }
+        snippet: { type: string }
+        snippetDigest: { type: string }
+        score: { type: number, format: double }
+        aclVerified: { type: boolean }
+    ConversationView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    MessageView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        conversationId: { type: string, format: uuid }
+        requestId: { type: string, format: uuid }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+        citations:
+          type: array
+          items: { $ref: '#/components/schemas/CitationView' }
+    FeedbackRequest:
+      type: object
+      properties:
+        rating: { type: string, enum: [UP, DOWN] }
+        reasonCode: { type: string, maxLength: 64 }
+        comment: { type: string, maxLength: 1000, description: 只入库，绝不进日志/报告/治理摘要 }
+
+    WikiPageCreateRequest:
+      type: object
+      required: [slug, title]
+      properties:
+        slug: { type: string, pattern: '^[a-z0-9][a-z0-9\-]{1,79}$' }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        body: { type: string, description: Markdown 源文本，上限 kb.wiki.max-body-bytes }
+        summary: { type: string, maxLength: 500 }
+        ownerUserId: { type: string, description: 缺省为 actor }
+        validUntil: { type: string, format: date-time, nullable: true }
+        reviewAt: { type: string, format: date-time, nullable: true }
+    WikiDraftRequest:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        body: { type: string }
+        summary: { type: string, maxLength: 500 }
+    WikiSourceRequest:
+      type: object
+      required: [sourceType, sourceId]
+      properties:
+        sourceType: { type: string, enum: [DOCUMENT, WIKI_PAGE] }
+        sourceId: { type: string, format: uuid }
+        sourceVersion: { type: integer, minimum: 1 }
+        chunkIndex: { type: integer, minimum: 0 }
+        locator: { type: string, maxLength: 200 }
+    WikiGovernanceRequest:
+      type: object
+      properties:
+        ownerUserId: { type: string }
+        validUntil: { type: string, format: date-time, nullable: true }
+        reviewAt: { type: string, format: date-time, nullable: true }
+    WikiPage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        kbId: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        status: { $ref: '#/components/schemas/WikiPageStatus' }
+        freshness: { $ref: '#/components/schemas/WikiFreshness' }
+        ownerUserId: { type: string }
+        currentRevisionNo: { type: integer }
+        publishedRevisionNo: { type: integer, nullable: true }
+        aclVersionGuard: { type: integer, format: int64 }
+        validUntil: { type: string, format: date-time, nullable: true }
+        reviewAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        body: { type: string, description: 仅在调用方可见该修订时返回 }
+        bodyDigest: { type: string, minLength: 64, maxLength: 64 }
+        capabilities:
+          type: array
+          items: { $ref: '#/components/schemas/WikiCapability' }
+        sources:
+          type: array
+          items: { $ref: '#/components/schemas/WikiSource' }
+        syncTask: { $ref: '#/components/schemas/WikiSyncTaskView' }
+    WikiPageList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            allOf:
+              - { $ref: '#/components/schemas/WikiPage' }
+        nextCursor: { type: string, nullable: true }
+    WikiRevisionSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        pageId: { type: string, format: uuid }
+        revisionNo: { type: integer }
+        status: { $ref: '#/components/schemas/WikiRevisionStatus' }
+        authorUserId: { type: string }
+        reviewerUserId: { type: string, nullable: true }
+        reviewedAt: { type: string, format: date-time, nullable: true }
+        bodyDigest: { type: string, minLength: 64, maxLength: 64 }
+        summary: { type: string }
+        createdAt: { type: string, format: date-time }
+    WikiRevision:
+      allOf:
+        - { $ref: '#/components/schemas/WikiRevisionSummary' }
+        - type: object
+          properties:
+            body: { type: string, description: 仅在草稿可见性规则通过时返回 }
+            parentRevisionId: { type: string, format: uuid, nullable: true }
+            sources:
+              type: array
+              items: { $ref: '#/components/schemas/WikiSource' }
+    WikiSource:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        revisionId: { type: string, format: uuid }
+        sourceType: { type: string, enum: [DOCUMENT, WIKI_PAGE] }
+        sourceId: { type: string, format: uuid }
+        sourceVersion: { type: integer, nullable: true }
+        chunkIndex: { type: integer, nullable: true }
+        locator: { type: string }
+        contentDigest: { type: string }
+        aclVersion: { type: integer, format: int64 }
+        available: { type: boolean, description: 读取时回查结果；false 表示断链（不阻断，只标 STALE） }
+    WikiReviewQueueItem:
+      type: object
+      properties:
+        revisionId: { type: string, format: uuid }
+        pageId: { type: string, format: uuid }
+        title: { type: string }
+        revisionNo: { type: integer }
+        authorUserId: { type: string }
+        submittedAt: { type: string, format: date-time }
+        slaDueAt: { type: string, format: date-time }
+        overdue: { type: boolean }
+    WikiDiff:
+      type: object
+      properties:
+        pageId: { type: string, format: uuid }
+        fromRevisionNo: { type: integer }
+        toRevisionNo: { type: integer }
+        fromBodyDigest: { type: string }
+        toBodyDigest: { type: string }
+        addedLines: { type: integer }
+        removedLines: { type: integer }
+        truncated: { type: boolean, description: 超过 kb.wiki.max-body-bytes 时只给计数不给行 }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              op: { type: string, enum: [context, added, removed] }
+              text: { type: string }
+    WikiSyncTaskView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        operation: { type: string, enum: [PUBLISH, RETRACT] }
+        status: { $ref: '#/components/schemas/WikiSyncStatus' }
+        attempts: { type: integer }
+        maxAttempts: { type: integer }
+        nextRunAt: { type: string, format: date-time, nullable: true }
+        errorCode: { type: string, nullable: true }
+        note: { type: string, description: 固定提示：本阶段发布同步消费者未接线（准入 F-1），任务停在 PENDING }

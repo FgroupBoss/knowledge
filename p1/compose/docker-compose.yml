@@ -1,0 +1,149 @@
+name: kb-p1
+
+# P1 角色拆分：api 只处理 HTTP + 业务写；worker 只消费 Kafka / 推进退避 / 续租。
+# 两个容器共用同一镜像与同一数据库，依靠 KB_ROLE 决定启用哪些 bean。
+# 依赖已运行的 P0 基础设施（mysql/redis/kafka/minio），通过外部网络接入。
+
+x-p1-env: &p1-env
+  KB_DB_URL: "jdbc:mysql://mysql:3306/kb_p1?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8&connectionTimeZone=%2B00:00"
+  KB_DB_USER_FILE: /run/secrets/p1_db_user
+  KB_DB_PASSWORD_FILE: /run/secrets/p1_db_password
+  KB_DB_DDL_USER: kb_p1_ddl
+  KB_DB_DDL_PASSWORD_FILE: /run/secrets/p1_db_ddl_password
+  KB_REDIS_HOST: redis
+  # 容器内是 6379；16379 只是 P0 在宿主机上的映射端口
+  KB_REDIS_PORT: "6379"
+  KB_REDIS_PASSWORD_FILE: /run/secrets/redis_password
+  KB_KAFKA_BOOTSTRAP: kafka:9092
+  KB_MINIO_ENDPOINT: http://minio:9000
+  KB_MINIO_ACCESS_KEY_FILE: /run/secrets/minio_access_key
+  KB_MINIO_SECRET_KEY_FILE: /run/secrets/minio_secret_key
+  KB_TEMP_DIR: /tmp
+  KB_UPLOAD_MAX_BYTES: "104857600"
+  KB_COOKIE_SECURE: "${KB_COOKIE_SECURE:-true}"
+  KB_SESSION_COOKIE: "${KB_SESSION_COOKIE:-kb_session}"
+  KB_OIDC_ISSUER: "${KB_OIDC_ISSUER:-}"
+  KB_OIDC_CLIENT_ID: "${KB_OIDC_CLIENT_ID:-}"
+  KB_OIDC_REDIRECT_URI: "${KB_OIDC_REDIRECT_URI:-}"
+  KB_OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+  KB_OIDC_JIT_ENABLED: "${KB_OIDC_JIT_ENABLED:-false}"
+  KB_DEV_SUBJECT_ENABLED: "${KB_DEV_SUBJECT_ENABLED:-false}"
+  KB_OFFLINE_ENFORCED: "${KB_OFFLINE_ENFORCED:-true}"
+  KB_ENGINE_PROVIDER: "${KB_ENGINE_PROVIDER:-stub}"
+  KB_ENGINE_BASE_URL: "${KB_ENGINE_BASE_URL:-http://weknora:8080}"
+  KB_ENGINE_CAPABILITY_PROBE: "${KB_ENGINE_CAPABILITY_PROBE:-true}"
+  KB_WEKNORA_KB_PATH: "${KB_WEKNORA_KB_PATH:-/api/v1/knowledge-bases}"
+  KB_WEKNORA_SEARCH_PATH: "${KB_WEKNORA_SEARCH_PATH:-/api/v1/search}"
+  KB_EMBEDDING_MODE: "${KB_EMBEDDING_MODE:-ollama}"
+  KB_CHAT_MODE: "${KB_CHAT_MODE:-ollama}"
+  KB_OLLAMA_BASE_URL: "${KB_OLLAMA_BASE_URL:-http://ollama:11434}"
+  KB_OLLAMA_EMBED_MODEL: "${KB_OLLAMA_EMBED_MODEL:-nomic-embed-text}"
+  KB_OLLAMA_CHAT_MODEL: "${KB_OLLAMA_CHAT_MODEL:-deepseek-r1:8b}"
+  KB_MODEL_MAX_CONCURRENT: "${KB_MODEL_MAX_CONCURRENT:-5}"
+  KB_INGEST_CONCURRENCY: "${KB_INGEST_CONCURRENCY:-2}"
+  KB_INGEST_MAX_ATTEMPTS: "${KB_INGEST_MAX_ATTEMPTS:-5}"
+  KB_INGEST_BACKOFF_BASE_MS: "${KB_INGEST_BACKOFF_BASE_MS:-2000}"
+  KB_INGEST_BACKOFF_MAX_MS: "${KB_INGEST_BACKOFF_MAX_MS:-300000}"
+  KB_INGEST_LEASE_SECONDS: "${KB_INGEST_LEASE_SECONDS:-45}"
+  KB_INGEST_LEASE_HEARTBEAT: "${KB_INGEST_LEASE_HEARTBEAT:-15}"
+  KB_AUDIT_TOPIC: "${KB_AUDIT_TOPIC:-kb.audit.v1}"
+  KB_DB_ENFORCE_LEAST_PRIVILEGE: "true"
+
+x-p1-service: &p1-service
+  image: kb-p1-portal:1.0.0
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=512m
+  security_opt:
+    - no-new-privileges:true
+  # 只走内网；需要发布端口的服务再额外挂 p1-ingress
+  networks: [p1-backend]
+  secrets:
+    - p1_db_user
+    - p1_db_password
+    - p1_db_ddl_password
+    - redis_password
+    - minio_access_key
+    - minio_secret_key
+    - oidc_client_secret
+
+services:
+  portal-api:
+    <<: *p1-service
+    container_name: kb-p1-api
+    environment:
+      <<: *p1-env
+      KB_ROLE: api
+    # p1-backend 是 internal 网络，只有再挂 p1-ingress 才能把端口发布到宿主机
+    networks: [p1-backend, p1-ingress]
+    ports:
+      - "127.0.0.1:18181:18181"
+    deploy:
+      resources:
+        limits:
+          memory: 1200M
+
+  portal-worker:
+    <<: *p1-service
+    container_name: kb-p1-worker
+    environment:
+      <<: *p1-env
+      KB_ROLE: worker
+    # worker 不发布任何端口；健康检查由内网探针/编排层访问 18181/actuator/health
+    depends_on:
+      - portal-api
+    deploy:
+      resources:
+        limits:
+          memory: 1200M
+
+  gateway:
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    container_name: kb-p1-gateway
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8443:8443"
+    networks: [p1-backend, p1-ingress]
+    depends_on:
+      - portal-api
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+secrets:
+  p1_db_user:
+    file: ./secrets/p1_db_user.txt
+  p1_db_password:
+    file: ./secrets/p1_db_password.txt
+  p1_db_ddl_password:
+    file: ./secrets/p1_db_ddl_password.txt
+  oidc_client_secret:
+    file: ./secrets/oidc_client_secret.txt
+  redis_password:
+    file: ${KB_P0_SECRETS:-../../p0/compose/secrets}/redis_password.txt
+  minio_access_key:
+    file: ${KB_P0_SECRETS:-../../p0/compose/secrets}/minio_access_key.txt
+  minio_secret_key:
+    file: ${KB_P0_SECRETS:-../../p0/compose/secrets}/minio_secret_key.txt
+
+networks:
+  # 复用 P0 的 internal 后端网络：容器没有外网路由
+  p1-backend:
+    external: true
+    name: ${KB_INFRA_NETWORK:-kb-p0_p0-backend}
+  # 只用于宿主机回环端口映射；与 P0 的 ingress 网络同一张
+  p1-ingress:
+    external: true
+    name: ${KB_INGRESS_NETWORK:-kb-p0_p0-ingress}

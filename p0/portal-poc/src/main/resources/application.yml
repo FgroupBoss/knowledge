@@ -1,0 +1,185 @@
+spring:
+  application:
+    name: kb-p0-portal
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  datasource:
+    url: ${P0_DB_URL:jdbc:mysql://127.0.0.1:13306/kb_p0?useSSL=false&requireSSL=false&serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&connectionTimeZone=%2B00:00}
+    username: ${P0_DB_USER:kb_p0_app}
+    password: ${P0_DB_PASSWORD:}
+    hikari:
+      pool-name: p0-pool
+      maximum-pool-size: 12
+      minimum-idle: 2
+      connection-timeout: 5000
+      max-lifetime: 600000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    out-of-order: false
+  data:
+    redis:
+      host: ${P0_REDIS_HOST:127.0.0.1}
+      port: ${P0_REDIS_PORT:16379}
+      password: ${P0_REDIS_PASSWORD:}
+      timeout: 1500ms
+      connect-timeout: 1500ms
+  kafka:
+    bootstrap-servers: ${P0_KAFKA_BOOTSTRAP:localhost:29092}
+    consumer:
+      # 组名不在这里全局设定：入库组与删除组是两个独立 group，见 p0.ingest.consumer-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 16
+      properties:
+        session.timeout.ms: 15000
+        heartbeat.interval.ms: 3000
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+    producer:
+      acks: all
+      client-id: kb-p0-portal
+      properties:
+        enable.idempotence: true
+        retries: 100
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 15000
+        request.timeout.ms: 5000
+        linger.ms: 5
+    listener:
+      ack-mode: manual_immediate
+      concurrency: ${P0_INGEST_CONCURRENCY:2}
+      missing-topics-fatal: false
+      poll-timeout: 5000
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: ${P0_UPLOAD_MAX_BYTES:104857600}
+      max-request-size: 115400000
+      file-size-threshold: 0
+      location: ${P0_TEMP_DIR:../../.tmp}
+  threads:
+    virtual:
+      enabled: true
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true
+    default-fetch-size: 100
+    default-statement-timeout: 15
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: db,redis,kafkaProbe,diskSpace,engineProbe,storageProbe
+  info:
+    env:
+      enabled: false
+
+server:
+  port: ${P0_APP_PORT:18180}
+  shutdown: graceful
+  tomcat:
+    max-swallow-size: 0
+    connection-timeout: 20s
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-},%X{actor:-}] %logger{24} - %msg%n"
+  level:
+    com.acme.kb: INFO
+    org.apache.kafka: WARN
+    io.minio: WARN
+
+p0:
+  secrets-dir: ${P0_SECRETS_DIR:../compose/secrets}
+  offline-enforced: ${P0_OFFLINE_ENFORCED:false}
+  temp-dir: ${P0_TEMP_DIR:../../.tmp}
+  upload:
+    max-bytes: ${P0_UPLOAD_MAX_BYTES:104857600}
+    max-concurrent: ${P0_UPLOAD_MAX_CONCURRENT:3}
+    allowed-extensions: [md, txt, csv, tsv, json, log, pdf, docx, xlsx, pptx]
+    allowed-mime-types:
+      - text/markdown
+      - text/plain
+      - text/csv
+      - text/tab-separated-values
+      - application/json
+      - application/pdf
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      - application/vnd.openxmlformats-officedocument.presentationml.presentation
+  storage:
+    bucket: ${P0_MINIO_BUCKET:kb-p0-originals-private}
+    endpoint: ${P0_MINIO_ENDPOINT:http://127.0.0.1:19000}
+    access-key: ${P0_MINIO_ACCESS_KEY:}
+    access-key-file: ${P0_MINIO_ACCESS_KEY_FILE:}
+    secret-key: ${P0_MINIO_SECRET_KEY:}
+    secret-key-file: ${P0_MINIO_SECRET_KEY_FILE:}
+    retention-days: 7
+  ingest:
+    topic-requested: kb.ingest.requested.v1
+    topic-retry: kb.ingest.retry.v1
+    topic-dlq: kb.ingest.dlq.v1
+    topic-delete: kb.document.delete.v1
+    consumer-group: ${P0_INGEST_GROUP:p0-ingest}
+    delete-consumer-group: ${P0_DELETE_GROUP:p0-delete}
+    max-attempts: 5
+    backoff-base-ms: 2000
+    lease-seconds: 45
+    outbox-batch: 50
+    outbox-interval-ms: 500
+  engine:
+    provider: ${P0_ENGINE_PROVIDER:stub}          # stub | weknora
+    base-url: ${P0_ENGINE_BASE_URL:http://127.0.0.1:18180/__engine-stub__}
+    timeout-ms: ${P0_ENGINE_TIMEOUT_MS:60000}
+    chunk-size: 800
+    chunk-overlap: 120
+    top-k: 20
+    context-chunks: 6
+    score-threshold: ${P0_SCORE_THRESHOLD:0.18}   # 相关性下限：P1 必须在新语料上重校准，见 ADR-008
+    embedding-mode: ${P0_EMBEDDING_MODE:ollama}   # ollama | deterministic
+    chat-mode: ${P0_CHAT_MODE:ollama}             # ollama | extractive
+    fallback-embedding-dim: 256
+    leak-out-of-scope: ${P0_ENGINE_LEAK:false}    # 仅验证用：模拟引擎返回越界 chunk
+  ollama:
+    base-url: ${P0_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+    chat-model: ${P0_OLLAMA_CHAT_MODEL:deepseek-r1:8b}
+    embed-model: ${P0_OLLAMA_EMBED_MODEL:nomic-embed-text}
+    allow-remote: ${P0_OLLAMA_ALLOW:true}
+    timeout-ms: 180000
+    max-concurrent: ${P0_OLLAMA_MAX_CONCURRENT:5}
+    max-prompt-chars: ${P0_MODEL_MAX_PROMPT_CHARS:4096}
+    max-new-tokens: ${P0_MODEL_MAX_NEW_TOKENS:800}
+    temperature: 0.1
+  cache:
+    enabled: true
+    ttl-seconds: 60
+    namespace: p0
+  chat:
+    rate-per-minute: ${P0_CHAT_RATE_PER_MIN:30}
+  auth:
+    stub-enabled: ${P0_AUTH_STUB_ENABLED:true}
+  fixture:
+    # 默认关闭：夹具端点只存在于验证环境，且必须另带独立口令（越权面不靠"反正是内网"来收）
+    enabled: ${P0_FIXTURE_ENABLED:false}
+    token: ${P0_FIXTURE_TOKEN:}
+    token-file: ${P0_FIXTURE_TOKEN_FILE:}
+    baseline-tenant: ${P0_FIXTURE_BASELINE_TENANT:red}
+    baseline-admin: ${P0_FIXTURE_BASELINE_ADMIN:admin}

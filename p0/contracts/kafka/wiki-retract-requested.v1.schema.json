@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acme.example/kb/contracts/kafka/wiki-retract-requested-v1.json",
+  "title": "WIKI_RETRACT_REQUESTED",
+  "description": "Wiki 撤稿事件。主题 kb.wiki.retract.v1，独立消费者组 kb.wiki.retract（D-04：与 sync 分主题分组，避免一个组积压阻塞另一个）。失败语义与 sync **相反**：任一步失败置 COMPENSATION_REQUIRED，绝不进任何 retry 主题——重放会把正在下线的页面重新索引出第二份有效索引（AGENTS.md §8 的既成教训）。载荷不含正文。接线状态见 p1/contracts/state-machine-wiki.md §6。",
+  "type": "object",
+  "required": [
+    "eventId", "eventType", "schemaVersion", "occurredAt",
+    "tenantId", "workspaceId", "kbId", "pageId", "operationId", "correlationId",
+    "taskId", "publishedRevisionNo", "retirements"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "WIKI_RETRACT_REQUESTED" },
+    "schemaVersion": { "const": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "tenantId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "kbId": { "type": "string", "format": "uuid" },
+    "pageId": { "type": "string", "format": "uuid", "description": "Kafka partition key" },
+    "operationId": { "type": "string", "format": "uuid" },
+    "correlationId": { "type": "string", "format": "uuid" },
+    "taskId": { "type": "string", "format": "uuid", "description": "wiki_sync_task.id，operation=RETRACT" },
+    "publishedRevisionNo": { "type": "integer", "minimum": 1, "description": "发起撤稿时的生效修订号；MySQL 侧已把页面置 RETRACTING，检索层自该刻起拒绝该页面的一切命中（不依赖引擎）" },
+    "retirements": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "description": "需要下线的引擎文档清单。同一页面可能因历史发布留下多份索引，逐份确认消失后才可 RETRACTING → RETRACTED（E6）",
+      "items": {
+        "type": "object",
+        "required": ["revisionNo"],
+        "additionalProperties": false,
+        "properties": {
+          "revisionNo": { "type": "integer", "minimum": 1 },
+          "engineDocId": { "type": "string", "maxLength": 128 }
+        }
+      }
+    },
+    "requestedBy": { "type": "string", "maxLength": 128, "description": "发起撤稿的主体；与 header p0-actor-id 同值" },
+    "aclVersion": { "type": "integer", "minimum": 0 }
+  }
+}

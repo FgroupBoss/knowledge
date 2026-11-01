@@ -1,0 +1,249 @@
+spring:
+  application:
+    name: kb-p1-portal
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  datasource:
+    url: ${KB_DB_URL:jdbc:mysql://127.0.0.1:13306/kb_p1?useSSL=false&requireSSL=false&serverTimezone=UTC&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&connectionTimeZone=%2B00:00}
+    username: ${KB_DB_USER:kb_p1_app}
+    password: ${KB_DB_PASSWORD:}
+    hikari:
+      pool-name: p1-pool
+      maximum-pool-size: 12
+      minimum-idle: 2
+      connection-timeout: 5000
+      max-lifetime: 600000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    out-of-order: false
+    # #6 账号拆分：迁移用 DDL 账号，应用运行账号只有 DML
+    user: ${KB_DB_DDL_USER:kb_p1_ddl}
+    password: ${KB_DB_DDL_PASSWORD:}
+  session:
+    store-type: jdbc
+    jdbc:
+      initialize-schema: never
+      table-name: SPRING_SESSION
+    timeout: ${KB_SESSION_TIMEOUT:8h}
+  data:
+    redis:
+      host: ${KB_REDIS_HOST:127.0.0.1}
+      port: ${KB_REDIS_PORT:16379}
+      password: ${KB_REDIS_PASSWORD:}
+      timeout: 1500ms
+      connect-timeout: 1500ms
+  kafka:
+    bootstrap-servers: ${KB_KAFKA_BOOTSTRAP:localhost:29092}
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 16
+      properties:
+        session.timeout.ms: 15000
+        heartbeat.interval.ms: 3000
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+    producer:
+      acks: all
+      client-id: kb-p1-portal
+      properties:
+        enable.idempotence: true
+        retries: 100
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 15000
+        request.timeout.ms: 5000
+        linger.ms: 5
+    listener:
+      ack-mode: manual_immediate
+      concurrency: ${KB_INGEST_CONCURRENCY:2}
+      missing-topics-fatal: false
+      poll-timeout: 5000
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: ${KB_UPLOAD_MAX_BYTES:104857600}
+      max-request-size: 115400000
+      file-size-threshold: 0
+      location: ${KB_TEMP_DIR:../../.tmp}
+  threads:
+    virtual:
+      enabled: true
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true
+    default-fetch-size: 100
+    default-statement-timeout: 15
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: db,redis,kafkaProbe,diskSpace,engineProbe,storageProbe
+  info:
+    env:
+      enabled: false
+
+server:
+  port: ${KB_APP_PORT:18181}
+  shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        name: ${KB_SESSION_COOKIE:kb_session}
+        http-only: true
+        secure: ${KB_COOKIE_SECURE:false}
+        same-site: lax
+        path: /
+      tracking-modes: cookie
+  tomcat:
+    max-swallow-size: 0
+    connection-timeout: 20s
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-},%X{actor:-}] %logger{24} - %msg%n"
+  level:
+    com.acme.kb: INFO
+    org.apache.kafka: WARN
+    io.minio: WARN
+
+kb:
+  role: ${KB_ROLE:api}
+  secrets-dir: ${KB_SECRETS_DIR:../compose/secrets}
+  offline-enforced: ${KB_OFFLINE_ENFORCED:false}
+  temp-dir: ${KB_TEMP_DIR:../../.tmp}
+  upload:
+    max-bytes: ${KB_UPLOAD_MAX_BYTES:104857600}
+    max-concurrent: ${KB_UPLOAD_MAX_CONCURRENT:3}
+    allowed-extensions: [md, txt, csv, tsv, json, log, pdf, docx, xlsx, pptx]
+    allowed-mime-types:
+      - text/markdown
+      - text/plain
+      - text/csv
+      - text/tab-separated-values
+      - application/json
+      - application/pdf
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      - application/vnd.openxmlformats-officedocument.presentationml.presentation
+  storage:
+    bucket: ${KB_MINIO_BUCKET:kb-p1-originals-private}
+    endpoint: ${KB_MINIO_ENDPOINT:http://127.0.0.1:19000}
+    access-key: ${KB_MINIO_ACCESS_KEY:}
+    access-key-file: ${KB_MINIO_ACCESS_KEY_FILE:}
+    secret-key: ${KB_MINIO_SECRET_KEY:}
+    secret-key-file: ${KB_MINIO_SECRET_KEY_FILE:}
+    retention-days: ${KB_STORAGE_RETENTION_DAYS:30}
+  ingest:
+    topic-requested: kb.ingest.requested.v1
+    topic-retry: kb.ingest.retry.v1
+    topic-dlq: kb.ingest.dlq.v1
+    topic-delete: kb.document.delete.v1
+    topic-reconcile: kb.ingest.reconcile.v1
+    consumer-group: ${KB_INGEST_GROUP:p1-ingest}
+    delete-consumer-group: ${KB_DELETE_GROUP:p1-delete}
+    max-attempts: ${KB_INGEST_MAX_ATTEMPTS:5}
+    backoff-base-ms: ${KB_INGEST_BACKOFF_BASE_MS:2000}
+    backoff-max-ms: ${KB_INGEST_BACKOFF_MAX_MS:300000}
+    lease-seconds: ${KB_INGEST_LEASE_SECONDS:45}
+    heartbeat-seconds: ${KB_INGEST_LEASE_HEARTBEAT:15}
+    retry-pump-ms: ${KB_INGEST_RETRY_PUMP_MS:500}
+    outbox-batch: 50
+    outbox-interval-ms: 500
+  engine:
+    provider: ${KB_ENGINE_PROVIDER:stub}          # stub | weknora
+    base-url: ${KB_ENGINE_BASE_URL:http://127.0.0.1:18180/__engine-stub__}
+    timeout-ms: ${KB_ENGINE_TIMEOUT_MS:60000}
+    chunk-size: 800
+    chunk-overlap: 120
+    top-k: ${KB_TOP_K:20}
+    context-chunks: ${KB_CONTEXT_CHUNKS:6}
+    score-threshold: ${KB_SCORE_THRESHOLD:0.18}   # 运行时以 calibration.json 为准
+    leak-out-of-scope: false
+    capability-probe: ${KB_ENGINE_CAPABILITY_PROBE:true}
+    embedding-mode: ${KB_EMBEDDING_MODE:ollama}   # ollama | deterministic
+    chat-mode: ${KB_CHAT_MODE:ollama}             # ollama | extractive
+    fallback-embedding-dim: 256
+    token: ${KB_ENGINE_TOKEN:}
+    token-file: ${KB_ENGINE_TOKEN_FILE:}
+    weknora-kb-path: ${KB_WEKNORA_KB_PATH:/api/v1/knowledge-bases}
+    weknora-search-path: ${KB_WEKNORA_SEARCH_PATH:/api/v1/search}
+  ollama:
+    base-url: ${KB_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+    chat-model: ${KB_OLLAMA_CHAT_MODEL:deepseek-r1:8b}
+    embed-model: ${KB_OLLAMA_EMBED_MODEL:nomic-embed-text}
+    allow-remote: ${KB_OLLAMA_ALLOW:true}
+    timeout-ms: 180000
+    max-concurrent: ${KB_MODEL_MAX_CONCURRENT:5}
+    max-prompt-chars: ${KB_MODEL_MAX_PROMPT_CHARS:4096}
+    max-new-tokens: 800
+    temperature: 0.1
+    digest-verify: ${KB_MODEL_DIGEST_VERIFY:true}
+  cache:
+    enabled: true
+    ttl-seconds: ${KB_ACL_CACHE_TTL:60}
+    version-ttl-seconds: ${KB_ACL_CACHE_VERSION_TTL:300}
+    namespace: p1
+  chat:
+    rate-per-minute: ${KB_CHAT_RATE_PER_MIN:30}
+    tenant-per-minute: ${KB_CHAT_RATE_PER_MIN_TENANT:300}
+    calibration-file: ${KB_SCORE_THRESHOLD_FILE:calibration.json}
+  auth:
+    dev-subject-enabled: ${KB_DEV_SUBJECT_ENABLED:false}
+  session:
+    cookie-name: __Host-kb_session
+    timeout: ${KB_SESSION_TIMEOUT:8h}
+    absolute-timeout: ${KB_SESSION_ABSOLUTE:12h}
+    csrf-cookie: XSRF-TOKEN
+    csrf-header: X-XSRF-TOKEN
+  security:
+    oidc-issuer: ${KB_OIDC_ISSUER:}
+    oidc-client-id: ${KB_OIDC_CLIENT_ID:}
+    oidc-client-secret: ${KB_OIDC_CLIENT_SECRET:}
+    oidc-client-secret-file: ${KB_OIDC_CLIENT_SECRET_FILE:}
+    oidc-redirect-uri: ${KB_OIDC_REDIRECT_URI:}
+    oidc-scopes: ${KB_OIDC_SCOPES:openid,profile,email}
+    jit-enabled: ${KB_OIDC_JIT_ENABLED:false}
+  audit:
+    retention-days: ${KB_AUDIT_RETENTION_DAYS:180}
+    chain-enabled: ${KB_AUDIT_CHAIN_ENABLED:true}
+    topic: ${KB_AUDIT_TOPIC:kb.audit.v1}
+  database:
+    enforce-least-privilege: ${KB_DB_ENFORCE_LEAST_PRIVILEGE:true}
+  wiki:
+    # 默认关闭：P2-W1 只交付状态机/CRUD/审核闭环，发布同步消费者与真引擎联调属 W2（准入 F-1）
+    enabled: ${KB_WIKI_ENABLED:false}
+    max-body-bytes: ${KB_WIKI_MAX_BODY_BYTES:204800}
+    sync-concurrency: ${KB_WIKI_SYNC_CONCURRENCY:2}
+    backoff-base-ms: ${KB_WIKI_BACKOFF_BASE_MS:5000}
+    backoff-max-ms: ${KB_WIKI_BACKOFF_MAX_MS:600000}
+    max-attempts: ${KB_WIKI_MAX_ATTEMPTS:6}
+    lease-seconds: ${KB_WIKI_LEASE_SECONDS:45}
+    heartbeat-seconds: ${KB_WIKI_LEASE_HEARTBEAT:15}
+    stale-days: ${KB_WIKI_STALE_DAYS:14}
+    expire-after-days: ${KB_WIKI_EXPIRE_AFTER_DAYS:0}
+    review-sla-hours: ${KB_WIKI_REVIEW_SLA_HOURS:72}
+    reminder-cron: "${KB_WIKI_REMINDER_CRON:0 30 2 * * *}"
+    retention-days: ${KB_WIKI_RETENTION_DAYS:180}
+    topic-sync: kb.wiki.sync.v1
+    topic-retract: kb.wiki.retract.v1
+    topic-dlq: kb.wiki.dlq.v1
+    consumer-group: ${KB_WIKI_SYNC_GROUP:p1-wiki-sync}
+    retract-consumer-group: ${KB_WIKI_RETRACT_GROUP:p1-wiki-retract}

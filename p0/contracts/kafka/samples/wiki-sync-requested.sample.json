@@ -1,0 +1,20 @@
+{
+  "eventId": "5c8e2a10-1111-4222-8333-0000000000a1",
+  "eventType": "WIKI_SYNC_REQUESTED",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-01T09:20:03.412Z",
+  "tenantId": "a1b2c3d4-0001-4a5b-8c9d-000000000001",
+  "workspaceId": "a1b2c3d4-0002-4a5b-8c9d-000000000002",
+  "kbId": "a1b2c3d4-0003-4a5b-8c9d-000000000003",
+  "pageId": "a1b2c3d4-0004-4a5b-8c9d-000000000004",
+  "revisionId": "a1b2c3d4-0005-4a5b-8c9d-000000000005",
+  "revisionNo": 2,
+  "operationId": "a1b2c3d4-0006-4a5b-8c9d-000000000006",
+  "correlationId": "a1b2c3d4-0007-4a5b-8c9d-000000000007",
+  "taskId": "a1b2c3d4-0008-4a5b-8c9d-000000000008",
+  "attempts": 0,
+  "notBefore": "2026-11-01T09:20:03.412Z",
+  "bodyDigest": "4a7f9c1d2e3f405162738495061728394a5b6c7d8e9f00112233445566778899",
+  "aclVersion": 7,
+  "previousRevisionNo": 1
+}

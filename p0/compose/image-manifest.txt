@@ -1,0 +1,38 @@
+# P0 镜像与依赖锁定清单
+# generated_at: 2026-10-31T15:25:34Z
+# 约束: 全部固定版本，无 latest 引用；本机镜像加速站对非 library 命名空间返回 403，
+#       因此 P0 只能使用本机已存在的固定版本镜像（见 decisions/ADR-001）。
+
+[compose images]
+minio/minio:RELEASE.2024-10-13T13-34-11Z@sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa arch=linux/amd64
+  id=sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa
+  repoDigest=minio/minio@sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa 
+minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 arch=linux/amd64
+  id=sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+  repoDigest=minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 
+mysql:8.4@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364 arch=linux/amd64
+  id=sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364
+  repoDigest=mysql@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364 
+redis:7.4-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2 arch=linux/amd64
+  id=sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+  repoDigest=redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2 
+apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837 arch=linux/amd64
+  id=sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837
+  repoDigest=apache/kafka@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837 
+
+[toolchain]
+jdk          : java version "21.0.9" 2025-10-21 LTS
+maven        : Apache Maven 3.9.14 (996c630dbc656c76214ce58821dcc58be960875b)
+docker       : 29.4.0
+compose      : 5.1.1
+ollama       : ollama version is 0.20.5
+
+[ollama models]
+  qwen2.5vl:7b             size=5.97GB family=qwen25vl params=8.3B quant=Q4_K_M digest=5ced39dfa4bac325dc1
+  deepseek-r1:8b           size=5.23GB family=qwen3 params=8.2B quant=Q4_K_M digest=6995872bfe4c521a67b
+  nomic-embed-text:latest  size=0.27GB family=nomic-bert params=137M quant=F16 digest=0a109f422b47e3a30ba
+
+[blocked pulls]
+  docker.io/weknora/*            -> 403 (镜像加速站仅放行 library)
+  weknora-registry.cn-hangzhou.cr.aliyuncs.com -> EOF/TLS 失败
+  详见 decisions/ADR-001、ADR-003
